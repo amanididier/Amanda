@@ -164,6 +164,12 @@ fn migrations() -> Vec<Migration> {
             sql: "INSERT INTO workspaces (id, name, description, workspace_type, status, is_system) VALUES ('__amanda_general__', 'Amanda', 'General private assistant conversation.', 'project', 'active', 1);",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 27,
+            description: "add_note_image_attachments",
+            sql: "ALTER TABLE daily_notes ADD COLUMN images TEXT NOT NULL DEFAULT '[]';",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

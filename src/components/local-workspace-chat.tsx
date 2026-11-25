@@ -64,9 +64,13 @@ const MAX_HISTORY_MESSAGE_CHARS = 700;
 export function LocalWorkspaceChat({
   workspace,
   tasks,
+  landing = false,
+  onBeginWorkspace,
 }: {
   workspace: LocalWorkspace;
   tasks: WorkspaceTask[];
+  landing?: boolean;
+  onBeginWorkspace?: () => void;
 }) {
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
@@ -77,6 +81,7 @@ export function LocalWorkspaceChat({
   const [actionBusy, setActionBusy] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const abortController = useRef<AbortController | null>(null);
+  const workspacePromptRequested = useRef(false);
   const endOfMessages = useRef<HTMLDivElement>(null);
   const { data: conversations = [] } = useQuery(workspaceConversationsQuery(workspace.id));
   const conversation =
@@ -307,9 +312,18 @@ export function LocalWorkspaceChat({
 
   return (
     <section
-      className="mt-8 rounded-lg border border-border"
+      className={landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 rounded-lg border border-border"}
       aria-labelledby="workspace-chat-heading"
     >
+      {landing && messages.length === 0 && !streamedResponse && (
+        <div className="mb-8 text-center">
+          <h1 className="font-serif text-4xl tracking-tight sm:text-5xl">What’s on your mind?</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Start anywhere. We’ll work out the next step together.
+          </p>
+        </div>
+      )}
+      {(!landing || messages.length > 0 || streamedResponse) && (
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
         <div>
           <h2 id="workspace-chat-heading" className="text-sm font-semibold">
@@ -360,7 +374,9 @@ export function LocalWorkspaceChat({
           )}
         </div>
       </header>
+      )}
 
+      {(!landing || messages.length > 0 || streamedResponse) && (
       <div
         className="max-h-[50vh] min-h-44 overflow-y-auto px-4 py-4 sm:px-5"
         role="log"
@@ -400,6 +416,7 @@ export function LocalWorkspaceChat({
         </ol>
         <div ref={endOfMessages} />
       </div>
+      )}
 
       {pendingAction && (
         <ActionApprovalCard
@@ -411,7 +428,7 @@ export function LocalWorkspaceChat({
         />
       )}
 
-      <div className="border-t border-border p-4 sm:px-5">
+      <div className={landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}>
         <div className="flex flex-col gap-2">
           <Label htmlFor={`workspace-chat-${workspace.id}`} className="sr-only">
             Message Amanda
@@ -419,7 +436,20 @@ export function LocalWorkspaceChat({
           <Textarea
             id={`workspace-chat-${workspace.id}`}
             value={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (
+                landing &&
+                messages.some((message) => message.role === "assistant") &&
+                nextValue.trim() &&
+                !input.trim() &&
+                !workspacePromptRequested.current
+              ) {
+                workspacePromptRequested.current = true;
+                onBeginWorkspace?.();
+              }
+              setInput(nextValue);
+            }}
             placeholder={
               modelReady
                 ? workspace.is_system === 1
@@ -427,7 +457,7 @@ export function LocalWorkspaceChat({
                   : "Ask about this project…"
                 : "Load the local model to chat"
             }
-            className="min-h-20 resize-y"
+            className={landing && messages.length === 0 ? "min-h-28 resize-y rounded-xl px-4 py-4" : "min-h-20 resize-y"}
             maxLength={MAX_PROMPT_CHARS}
             disabled={!modelReady || sending || pendingAction !== null}
           />
