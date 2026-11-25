@@ -438,6 +438,7 @@ export function LocalWorkspaceChat({
             value={input}
             onChange={(event) => {
               const nextValue = event.target.value;
+              if (!nextValue.trim()) workspacePromptRequested.current = false;
               if (
                 landing &&
                 messages.some((message) => message.role === "assistant") &&
