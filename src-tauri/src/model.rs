@@ -24,11 +24,22 @@ const SERVER_PORT: u16 = 15_789;
 const CONTEXT_SIZE: &str = "4096";
 const CPU_THREADS: &str = "2";
 
-struct RemoveFileOnDrop(std::path::PathBuf);
+struct RemoveFileOnDrop {
+    path: std::path::PathBuf,
+    keep: bool,
+}
+
+impl RemoveFileOnDrop {
+    fn keep_for_server_lifetime(&mut self) {
+        self.keep = true;
+    }
+}
 
 impl Drop for RemoveFileOnDrop {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        if !self.keep {
+            let _ = fs::remove_file(&self.path);
+        }
     }
 }
 
@@ -38,6 +49,7 @@ pub struct ModelRuntime {
     cancel_download: Arc<AtomicBool>,
     server: Arc<Mutex<Option<Child>>>,
     api_key: Arc<Mutex<Option<String>>>,
+    api_key_file: Arc<Mutex<Option<std::path::PathBuf>>>,
 }
 
 
@@ -206,6 +218,11 @@ fn server_is_running(runtime: &ModelRuntime) -> Result<bool, String> {
             *server = None;
             if let Ok(mut api_key) = runtime.api_key.lock() {
                 *api_key = None;
+            }
+            if let Ok(mut api_key_file) = runtime.api_key_file.lock() {
+                if let Some(path) = api_key_file.take() {
+                    let _ = fs::remove_file(path);
+                }
             }
             Ok(false)
         }
@@ -443,10 +460,22 @@ fn start_local_model_blocking(
     }
     let server_path = runtime_path(app)?;
     let api_key = Uuid::new_v4().simple().to_string();
-    let api_key_path = model_path.with_file_name(format!(".runtime-api-key-{}.tmp", api_key));
+    // Keep runtime credentials in Amanda's private app-data directory, not beside
+    // a user-selected model (which may live in Downloads or a protected folder).
+    let runtime_directory = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| format!("Could not locate Amanda's private runtime folder: {error}"))?
+        .join("runtime");
+    fs::create_dir_all(&runtime_directory)
+        .map_err(|error| format!("Could not create Amanda's private runtime folder: {error}"))?;
+    let api_key_path = runtime_directory.join(format!("llama-api-key-{api_key}.txt"));
     fs::write(&api_key_path, &api_key)
         .map_err(|error| format!("Could not prepare private local model credentials: {error}"))?;
-    let _api_key_file = RemoveFileOnDrop(api_key_path.clone());
+    let mut api_key_file_guard = RemoveFileOnDrop {
+        path: api_key_path.clone(),
+        keep: false,
+    };
     // Keep llama.cpp diagnostics so startup failures show their real cause.
     let log_directory = app
         .path()
@@ -538,6 +567,12 @@ fn start_local_model_blocking(
                 .lock()
                 .map_err(|_| "The local model credentials are unavailable".to_string())? =
                 Some(api_key.clone());
+            *runtime
+                .api_key_file
+                .lock()
+                .map_err(|_| "The local model credential file state is unavailable".to_string())? =
+                Some(api_key_path.clone());
+            api_key_file_guard.keep_for_server_lifetime();
             return Ok(ModelConnection {
                 base_url: format!("http://127.0.0.1:{SERVER_PORT}"),
                 api_key,
@@ -568,6 +603,11 @@ fn stop_server(runtime: &ModelRuntime) -> Result<(), String> {
     }
     if let Ok(mut api_key) = runtime.api_key.lock() {
         *api_key = None;
+    }
+    if let Ok(mut api_key_file) = runtime.api_key_file.lock() {
+        if let Some(path) = api_key_file.take() {
+            let _ = fs::remove_file(path);
+        }
     }
     Ok(())
 }
