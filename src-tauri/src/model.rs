@@ -478,11 +478,9 @@ fn start_local_model_blocking(
             "--api-key-file",
         ])
         .arg(&api_key_path)
-        .args([
-            "--cors-origins",
-            "http://localhost:8080,http://tauri.localhost,tauri://localhost",
-            "--jinja",
-        ])
+        // llama.cpp b9222 does not recognize --cors-origins.
+        // This server is bound to loopback only and protected by a per-launch API key.
+        .arg("--jinja")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::from(stderr_log));
