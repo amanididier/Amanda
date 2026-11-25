@@ -210,14 +210,9 @@ function NotesPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10 sm:px-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-3xl tracking-tight">Notes</h1>
-          <p className="mt-2 text-sm text-muted-foreground">A calm space for thoughts, drafts, and ideas.</p>
-        </div>
-        <Button onClick={() => void createNote()} disabled={!desktop}>
-          <FilePlus2 data-icon="inline-start" /> Create note
-        </Button>
+      <div>
+        <h1 className="font-serif text-3xl tracking-tight">Notes</h1>
+        <p className="mt-2 text-sm text-muted-foreground">A calm space for thoughts, drafts, and ideas.</p>
       </div>
 
       {!desktop && (
@@ -226,16 +221,21 @@ function NotesPage() {
         </p>
       )}
 
-      <div className="mt-6 relative">
-        <Label htmlFor="notes-search" className="sr-only">Search notes</Label>
-        <Search aria-hidden="true" className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
-        <Input
-          id="notes-search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search your notes"
-          className="h-10 w-full pl-9"
-        />
+      <div className="mt-6 flex items-center gap-3">
+        <div className="relative min-w-0 flex-1">
+          <Label htmlFor="notes-search" className="sr-only">Search notes</Label>
+          <Search aria-hidden="true" className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+          <Input
+            id="notes-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search your notes"
+            className="h-10 w-full pl-9"
+          />
+        </div>
+        <Button onClick={() => void createNote()} disabled={!desktop} className="shrink-0">
+          <FilePlus2 data-icon="inline-start" /> Create note
+        </Button>
       </div>
 
       {activeNote ? (
