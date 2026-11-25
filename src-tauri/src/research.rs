@@ -24,15 +24,19 @@ struct BraveResult { title: String, url: String, #[serde(default)] description: 
 #[derive(Deserialize)]
 struct FirecrawlResponse {
     #[serde(default)] success: bool,
-    #[serde(default)] data: Vec<FirecrawlResult>,
+    data: FirecrawlData,
     error: Option<String>,
+}
+#[derive(Deserialize, Default)]
+struct FirecrawlData {
+    #[serde(default)] web: Vec<FirecrawlResult>,
 }
 #[derive(Deserialize)]
 struct FirecrawlResult {
-    #[serde(default)] title: String,
+    title: Option<String>,
     url: String,
-    #[serde(default)] description: String,
-    #[serde(default)] markdown: String,
+    description: Option<String>,
+    markdown: Option<String>,
 }
 
 fn validate_provider(provider: &str) -> Result<&'static str, String> {
@@ -113,12 +117,16 @@ fn perform_search(provider: &str, key: &str, query: &str, limit: u8) -> Result<V
     if provider == "firecrawl" {
         let payload: FirecrawlResponse = response.json().map_err(|_| "Firecrawl returned an unreadable response".to_string())?;
         if !payload.success { return Err(payload.error.unwrap_or_else(|| "Firecrawl could not complete the search".to_string())); }
-        Ok(payload.data.into_iter().filter(|item| item.url.starts_with("https://")).take(limit as usize)
-            .map(|item| ResearchResult {
-                title: if item.title.trim().is_empty() { item.url.clone() } else { item.title.chars().take(300).collect() },
-                url: item.url.chars().take(2_000).collect(),
-                description: if item.description.trim().is_empty() { item.markdown.chars().take(1_200).collect() } else { item.description.chars().take(1_200).collect() },
-                provider: "Firecrawl".to_string(),
+        Ok(payload.data.web.into_iter().filter(|item| item.url.starts_with("https://")).take(limit as usize)
+            .map(|item| {
+                let title = item.title.filter(|value| !value.trim().is_empty()).unwrap_or_else(|| item.url.clone());
+                let description = item.description.or(item.markdown).unwrap_or_default();
+                ResearchResult {
+                    title: title.chars().take(300).collect(),
+                    url: item.url.chars().take(2_000).collect(),
+                    description: description.chars().take(1_200).collect(),
+                    provider: "Firecrawl".to_string(),
+                }
             }).collect())
     } else {
         let payload: BraveResponse = response.json().map_err(|_| "Brave Search returned an unreadable response".to_string())?;
