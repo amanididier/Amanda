@@ -229,8 +229,8 @@ function SettingsPage() {
         },
         body: JSON.stringify({
           messages: [{ role: "user", content: "Reply with: Amanda local model test passed." }],
-          max_tokens: 40,
-          temperature: 0.2,
+          max_tokens: 128,
+          temperature: 0.0,
           stream: false,
         }),
       });
@@ -241,10 +241,23 @@ function SettingsPage() {
         );
       }
       const result = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{
+          finish_reason?: string;
+          message?: { content?: string; reasoning_content?: string };
+        }>;
+        usage?: unknown;
       };
-      const answer = result.choices?.[0]?.message?.content?.trim();
-      if (!answer) throw new Error("The model returned an empty test response");
+      const choice = result.choices?.[0];
+      const answer = choice?.message?.content?.trim();
+      if (!answer) {
+        const reasoning = choice?.message?.reasoning_content?.trim();
+        const reasoningInfo = reasoning
+          ? ` The model returned ${reasoning.length} reasoning characters but no visible answer.`
+          : " The server returned neither visible answer text nor reasoning text.";
+        throw new Error(
+          `The model returned an empty test response (finish reason: ${choice?.finish_reason ?? "unknown"}).${reasoningInfo} Usage: ${JSON.stringify(result.usage ?? null)}`,
+        );
+      }
       setTestResponse(answer);
       toast.success("Model test completed");
     } catch (error) {
