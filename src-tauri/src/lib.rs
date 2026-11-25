@@ -197,6 +197,7 @@ pub fn run() {
             model::download_model,
             model::cancel_model_download,
             model::start_local_model,
+            model::repair_local_model,
             model::stop_local_model,
         ])
         .on_window_event(|window, event| {
