@@ -512,17 +512,17 @@ fn start_local_model_blocking(
                 .unwrap_or_else(|error| format!("Could not read llama.cpp log: {error}"));
             let diagnostic = diagnostic.trim();
             let diagnostic = if diagnostic.len() > 7000 {
-                &diagnostic[diagnostic.len() - 7000..]
+                diagnostic.chars().rev().take(7000).collect::<String>().chars().rev().collect::<String>()
             } else {
-                diagnostic
+                diagnostic.to_string()
             };
             let detail = if diagnostic.is_empty() {
                 format!("No diagnostic output was written. Full log path: {}", log_path.display())
             } else {
-                format!("llama.cpp output:\\n{diagnostic}\\n\\nFull log: {}", log_path.display())
+                format!("llama.cpp output:\n{diagnostic}\n\nFull log: {}", log_path.display())
             };
             return Err(format!(
-                "llama.cpp exited before the model was ready (exit status {status}).\\n{detail}"
+                "llama.cpp exited before the model was ready (exit status {status}).\n{detail}"
             ));
         }
         if client
