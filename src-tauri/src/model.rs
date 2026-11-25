@@ -518,9 +518,29 @@ fn start_local_model_blocking(
             .is_ok_and(|response| response.status().is_success())
         {
             // /props is deliberately not a public endpoint in llama.cpp b9222.
-            // A successful authenticated response proves the server accepted this exact key.
+            // First prove authentication is actually enabled, then prove this key is accepted.
+            let props_url = format!("http://127.0.0.1:{SERVER_PORT}/props");
+            let unauthenticated_response = match client.get(&props_url).send() {
+                Ok(response) => response,
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!(
+                        "The model started, but its authentication-enforcement check could not reach /props: {error}"
+                    ));
+                }
+            };
+            if unauthenticated_response.status() != reqwest::StatusCode::UNAUTHORIZED {
+                let status = unauthenticated_response.status();
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "The local server did not enforce API-key authentication (expected HTTP 401 without a key, received HTTP {status}). Check that llama.cpp accepted LLAMA_API_KEY."
+                ));
+            }
+
             let auth_response = match client
-                .get(format!("http://127.0.0.1:{SERVER_PORT}/props"))
+                .get(&props_url)
                 .bearer_auth(&api_key)
                 .send()
             {
