@@ -46,7 +46,7 @@ try {
       "-ExecutionPolicy",
       "Bypass",
       "-Command",
-      "Expand-Archive -LiteralPath $env:AMANDA_LLAMA_ZIP -DestinationPath $env:AMANDA_LLAMA_STAGE -Force",
+      "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory($env:AMANDA_LLAMA_ZIP, $env:AMANDA_LLAMA_STAGE)",
     ],
     {
       env: {
