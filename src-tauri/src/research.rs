@@ -146,7 +146,18 @@ pub async fn save_web_search_key(provider: String, api_key: String) -> Result<We
     }
     #[cfg(target_os = "windows")]
     {
-        perform_search(&provider, &key, "Amanda web search API connection test", 1)?;
+        let test_provider = provider.clone();
+        let test_key = key.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            perform_search(
+                &test_provider,
+                &test_key,
+                "Amanda web search API connection test",
+                1,
+            )
+        })
+        .await
+        .map_err(|error| format!("Could not test the search provider: {error}"))??;
         let entry = keyring::Entry::new("AmandaLocalAssistant", credential_username(&provider))
             .map_err(|_| "Windows Credential Manager could not be opened".to_string())?;
         entry.set_password(&key).map_err(|_| "Windows could not securely save this API key".to_string())?;
