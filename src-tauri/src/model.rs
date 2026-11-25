@@ -24,32 +24,12 @@ const SERVER_PORT: u16 = 15_789;
 const CONTEXT_SIZE: &str = "4096";
 const CPU_THREADS: &str = "2";
 
-struct RemoveFileOnDrop {
-    path: std::path::PathBuf,
-    keep: bool,
-}
-
-impl RemoveFileOnDrop {
-    fn keep_for_server_lifetime(&mut self) {
-        self.keep = true;
-    }
-}
-
-impl Drop for RemoveFileOnDrop {
-    fn drop(&mut self) {
-        if !self.keep {
-            let _ = fs::remove_file(&self.path);
-        }
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct ModelRuntime {
     download_active: Arc<AtomicBool>,
     cancel_download: Arc<AtomicBool>,
     server: Arc<Mutex<Option<Child>>>,
     api_key: Arc<Mutex<Option<String>>>,
-    api_key_file: Arc<Mutex<Option<std::path::PathBuf>>>,
 }
 
 
@@ -218,11 +198,6 @@ fn server_is_running(runtime: &ModelRuntime) -> Result<bool, String> {
             *server = None;
             if let Ok(mut api_key) = runtime.api_key.lock() {
                 *api_key = None;
-            }
-            if let Ok(mut api_key_file) = runtime.api_key_file.lock() {
-                if let Some(path) = api_key_file.take() {
-                    let _ = fs::remove_file(path);
-                }
             }
             Ok(false)
         }
@@ -460,22 +435,8 @@ fn start_local_model_blocking(
     }
     let server_path = runtime_path(app)?;
     let api_key = Uuid::new_v4().simple().to_string();
-    // Keep runtime credentials in Amanda's private app-data directory, not beside
-    // a user-selected model (which may live in Downloads or a protected folder).
-    let runtime_directory = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| format!("Could not locate Amanda's private runtime folder: {error}"))?
-        .join("runtime");
-    fs::create_dir_all(&runtime_directory)
-        .map_err(|error| format!("Could not create Amanda's private runtime folder: {error}"))?;
-    let api_key_path = runtime_directory.join(format!("llama-api-key-{api_key}.txt"));
-    fs::write(&api_key_path, &api_key)
-        .map_err(|error| format!("Could not prepare private local model credentials: {error}"))?;
-    let mut api_key_file_guard = RemoveFileOnDrop {
-        path: api_key_path.clone(),
-        keep: false,
-    };
+    // Keep the per-launch credential out of command-line arguments and temporary files.
+    // llama.cpp b9222 reads LLAMA_API_KEY through its common argument parser.
     // Keep llama.cpp diagnostics so startup failures show their real cause.
     let log_directory = app
         .path()
@@ -504,9 +465,8 @@ fn start_local_model_blocking(
             CPU_THREADS,
             "--batch-size",
             "128",
-            "--api-key-file",
         ])
-        .arg(&api_key_path)
+        .env("LLAMA_API_KEY", &api_key)
         // llama.cpp b9222 does not recognize --cors-origins.
         // This server is bound to loopback only and protected by a per-launch API key.
         .arg("--jinja")
@@ -557,6 +517,33 @@ fn start_local_model_blocking(
             .send()
             .is_ok_and(|response| response.status().is_success())
         {
+            // /props is deliberately not a public endpoint in llama.cpp b9222.
+            // A successful authenticated response proves the server accepted this exact key.
+            let auth_response = match client
+                .get(format!("http://127.0.0.1:{SERVER_PORT}/props"))
+                .bearer_auth(&api_key)
+                .send()
+            {
+                Ok(response) => response,
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!(
+                        "The model started, but its authentication check could not reach /props: {error}"
+                    ));
+                }
+            };
+            if !auth_response.status().is_success() {
+                let status = auth_response.status();
+                let body = auth_response.text().unwrap_or_default();
+                let detail = body.chars().take(500).collect::<String>();
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "The model started but rejected its generated API key (HTTP {status}). Server response: {detail}"
+                ));
+            }
+
             *runtime
                 .server
                 .lock()
@@ -567,12 +554,6 @@ fn start_local_model_blocking(
                 .lock()
                 .map_err(|_| "The local model credentials are unavailable".to_string())? =
                 Some(api_key.clone());
-            *runtime
-                .api_key_file
-                .lock()
-                .map_err(|_| "The local model credential file state is unavailable".to_string())? =
-                Some(api_key_path.clone());
-            api_key_file_guard.keep_for_server_lifetime();
             return Ok(ModelConnection {
                 base_url: format!("http://127.0.0.1:{SERVER_PORT}"),
                 api_key,
@@ -585,6 +566,22 @@ fn start_local_model_blocking(
         }
         thread::sleep(Duration::from_millis(500));
     }
+}
+
+#[tauri::command]
+pub async fn repair_local_model(
+    app: AppHandle,
+    runtime: State<'_, ModelRuntime>,
+    model_path: Option<String>,
+) -> Result<ModelConnection, String> {
+    let app = app.clone();
+    let runtime = runtime.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        stop_server(&runtime)?;
+        start_local_model_blocking(&app, &runtime, model_path)
+    })
+    .await
+    .map_err(|error| format!("The local model repair stopped unexpectedly: {error}"))?
 }
 
 #[tauri::command]
@@ -603,11 +600,6 @@ fn stop_server(runtime: &ModelRuntime) -> Result<(), String> {
     }
     if let Ok(mut api_key) = runtime.api_key.lock() {
         *api_key = None;
-    }
-    if let Ok(mut api_key_file) = runtime.api_key_file.lock() {
-        if let Some(path) = api_key_file.take() {
-            let _ = fs::remove_file(path);
-        }
     }
     Ok(())
 }
