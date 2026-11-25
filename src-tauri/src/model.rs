@@ -52,7 +52,7 @@ pub struct ModelStatus {
     running: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DownloadProgress {
     downloaded_bytes: u64,

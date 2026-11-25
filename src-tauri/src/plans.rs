@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{Acquire, Row};
+use sqlx::Row;
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 use uuid::Uuid;
@@ -43,7 +43,6 @@ pub async fn save_approved_roadmap(
     let instances = instances.0.read().await;
     let pool = match instances.get(DATABASE_URL) {
         Some(DbPool::Sqlite(pool)) => pool,
-        Some(_) => return Err("Amanda's local database is not SQLite".to_string()),
         None => return Err("Amanda's local database is not ready".to_string()),
     };
     let mut transaction = pool
@@ -152,7 +151,6 @@ pub async fn update_roadmap_step(
     let instances = instances.0.read().await;
     let pool = match instances.get(DATABASE_URL) {
         Some(DbPool::Sqlite(pool)) => pool,
-        Some(_) => return Err("Amanda's local database is not SQLite".to_string()),
         None => return Err("Amanda's local database is not ready".to_string()),
     };
     let mut transaction = pool

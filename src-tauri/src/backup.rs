@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 use serde_json::Value;
-use sqlx::Acquire;
 use tauri::State;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
@@ -211,7 +210,6 @@ pub async fn restore_local_backup(
     let instances = instances.0.read().await;
     let pool = match instances.get(DATABASE_URL) {
         Some(DbPool::Sqlite(pool)) => pool,
-        Some(_) => return Err("Amanda's local database is not SQLite".to_string()),
         None => return Err("Amanda's local database is not ready".to_string()),
     };
 
