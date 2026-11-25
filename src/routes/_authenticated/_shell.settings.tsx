@@ -439,16 +439,18 @@ function SettingsPage() {
                   </Button>
                 </>
               )}
+              {modelStatus?.installed && (
+                <Button onClick={() => void handleRepairModel()} disabled={busy || !desktop || !modelStatus.runtimeAvailable}>
+                  {busy ? (
+                    <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                  ) : (
+                    <ShieldCheck data-icon="inline-start" />
+                  )}
+                  Repair & verify
+                </Button>
+              )}
               {modelStatus?.running && (
                 <>
-                  <Button onClick={() => void handleRepairModel()} disabled={busy}>
-                    {busy ? (
-                      <LoaderCircle data-icon="inline-start" className="animate-spin" />
-                    ) : (
-                      <ShieldCheck data-icon="inline-start" />
-                    )}
-                    Repair & verify
-                  </Button>
                   <Button onClick={() => void handleTestModel()} disabled={busy || !connection}>
                     {busy ? (
                       <LoaderCircle data-icon="inline-start" className="animate-spin" />
