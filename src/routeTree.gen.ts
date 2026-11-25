@@ -13,6 +13,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedShellRouteImport } from './routes/_authenticated/_shell'
 import { Route as AuthenticatedShellIndexRouteImport } from './routes/_authenticated/_shell.index'
 import { Route as AuthenticatedShellArchiveRouteImport } from './routes/_authenticated/_shell.archive'
+import { Route as AuthenticatedShellMemoryRouteImport } from './routes/_authenticated/_shell.memory'
 import { Route as AuthenticatedShellNotesRouteImport } from './routes/_authenticated/_shell.notes'
 import { Route as AuthenticatedShellProjectsRouteImport } from './routes/_authenticated/_shell.projects'
 import { Route as AuthenticatedShellResearchRouteImport } from './routes/_authenticated/_shell.research'
@@ -36,6 +37,12 @@ const AuthenticatedShellArchiveRoute =
   AuthenticatedShellArchiveRouteImport.update({
     id: '/archive',
     path: '/archive',
+    getParentRoute: () => AuthenticatedShellRoute,
+  } as any)
+const AuthenticatedShellMemoryRoute =
+  AuthenticatedShellMemoryRouteImport.update({
+    id: '/memory',
+    path: '/memory',
     getParentRoute: () => AuthenticatedShellRoute,
   } as any)
 const AuthenticatedShellNotesRoute = AuthenticatedShellNotesRouteImport.update({
@@ -71,6 +78,7 @@ const AuthenticatedShellWWorkspaceIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedShellIndexRoute
   '/archive': typeof AuthenticatedShellArchiveRoute
+  '/memory': typeof AuthenticatedShellMemoryRoute
   '/notes': typeof AuthenticatedShellNotesRoute
   '/projects': typeof AuthenticatedShellProjectsRoute
   '/research': typeof AuthenticatedShellResearchRoute
@@ -80,6 +88,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedShellIndexRoute
   '/archive': typeof AuthenticatedShellArchiveRoute
+  '/memory': typeof AuthenticatedShellMemoryRoute
   '/notes': typeof AuthenticatedShellNotesRoute
   '/projects': typeof AuthenticatedShellProjectsRoute
   '/research': typeof AuthenticatedShellResearchRoute
@@ -91,6 +100,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/_authenticated/_shell': typeof AuthenticatedShellRouteWithChildren
   '/_authenticated/_shell/archive': typeof AuthenticatedShellArchiveRoute
+  '/_authenticated/_shell/memory': typeof AuthenticatedShellMemoryRoute
   '/_authenticated/_shell/notes': typeof AuthenticatedShellNotesRoute
   '/_authenticated/_shell/projects': typeof AuthenticatedShellProjectsRoute
   '/_authenticated/_shell/research': typeof AuthenticatedShellResearchRoute
@@ -103,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/archive'
+    | '/memory'
     | '/notes'
     | '/projects'
     | '/research'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/archive'
+    | '/memory'
     | '/notes'
     | '/projects'
     | '/research'
@@ -122,6 +134,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/_authenticated/_shell'
     | '/_authenticated/_shell/archive'
+    | '/_authenticated/_shell/memory'
     | '/_authenticated/_shell/notes'
     | '/_authenticated/_shell/projects'
     | '/_authenticated/_shell/research'
@@ -164,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShellArchiveRouteImport
       parentRoute: typeof AuthenticatedShellRoute
     }
+    '/_authenticated/_shell/memory': {
+      id: '/_authenticated/_shell/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof AuthenticatedShellMemoryRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
     '/_authenticated/_shell/notes': {
       id: '/_authenticated/_shell/notes'
       path: '/notes'
@@ -204,6 +224,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedShellRouteChildren {
   AuthenticatedShellArchiveRoute: typeof AuthenticatedShellArchiveRoute
+  AuthenticatedShellMemoryRoute: typeof AuthenticatedShellMemoryRoute
   AuthenticatedShellNotesRoute: typeof AuthenticatedShellNotesRoute
   AuthenticatedShellProjectsRoute: typeof AuthenticatedShellProjectsRoute
   AuthenticatedShellResearchRoute: typeof AuthenticatedShellResearchRoute
@@ -214,6 +235,7 @@ interface AuthenticatedShellRouteChildren {
 
 const AuthenticatedShellRouteChildren: AuthenticatedShellRouteChildren = {
   AuthenticatedShellArchiveRoute: AuthenticatedShellArchiveRoute,
+  AuthenticatedShellMemoryRoute: AuthenticatedShellMemoryRoute,
   AuthenticatedShellNotesRoute: AuthenticatedShellNotesRoute,
   AuthenticatedShellProjectsRoute: AuthenticatedShellProjectsRoute,
   AuthenticatedShellResearchRoute: AuthenticatedShellResearchRoute,

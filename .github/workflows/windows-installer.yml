@@ -3,6 +3,8 @@ name: Windows installer
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "v0/local-model-first-run"
     tags:
       - "v*"
 
@@ -21,9 +23,23 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Check frontend lint
+        run: bun run lint
+
+      - name: Check frontend types
+        run: bun x tsc --noEmit -p tsconfig.json
+
+      - name: Run frontend tests
+        run: bun run test
 
       - name: Build NSIS installer
         run: bun run desktop:build

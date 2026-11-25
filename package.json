@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "build:desktop": "bun run build && node scripts/prepare-desktop-dist.mjs",
+    "build:desktop": "node scripts/prepare-llama-runtime.mjs && bun run build && node scripts/prepare-desktop-dist.mjs",
     "build:dev": "vite build --mode development",
     "desktop:build": "tauri build --bundles nsis",
     "desktop:dev": "tauri dev",

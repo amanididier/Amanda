@@ -1,0 +1,498 @@
+use std::{
+    fs::{self, File},
+    io::{Read, Write},
+    process::{Child, Command, Stdio},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::{Duration, Instant},
+};
+
+use serde::Serialize;
+use sha2::{Digest, Sha256};
+use tauri::{AppHandle, Emitter, Manager, State};
+use uuid::Uuid;
+
+const MODEL_REPOSITORY: &str = "bartowski/Qwen_Qwen3.5-2B-GGUF";
+const MODEL_REVISION: &str = "7d26695454df6de5fbcce2e58681e62dae06ce43";
+const MODEL_FILENAME: &str = "Qwen_Qwen3.5-2B-Q4_K_M.gguf";
+const MODEL_SHA256: &str = "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8";
+const MODEL_SIZE: u64 = 1_396_198_496;
+const SERVER_PORT: u16 = 15_789;
+const CONTEXT_SIZE: &str = "4096";
+const CPU_THREADS: &str = "2";
+
+struct RemoveFileOnDrop(std::path::PathBuf);
+
+impl Drop for RemoveFileOnDrop {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ModelRuntime {
+    download_active: Arc<AtomicBool>,
+    cancel_download: Arc<AtomicBool>,
+    server: Arc<Mutex<Option<Child>>>,
+    api_key: Arc<Mutex<Option<String>>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStatus {
+    installed: bool,
+    downloading: bool,
+    downloaded_bytes: u64,
+    total_bytes: u64,
+    model_path: String,
+    runtime_available: bool,
+    running: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DownloadProgress {
+    downloaded_bytes: u64,
+    total_bytes: u64,
+    percent: u8,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelConnection {
+    base_url: String,
+    api_key: String,
+}
+
+fn model_paths(app: &AppHandle) -> Result<(std::path::PathBuf, std::path::PathBuf), String> {
+    let directory = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| format!("Could not find Amanda's local data folder: {error}"))?
+        .join("models");
+    Ok((
+        directory.join(MODEL_FILENAME),
+        directory.join("qwen3.5-2b.sha256"),
+    ))
+}
+
+fn model_is_verified(model_path: &std::path::Path, marker_path: &std::path::Path) -> bool {
+    let marker_matches = fs::read_to_string(marker_path)
+        .map(|value| value.trim() == MODEL_SHA256)
+        .unwrap_or(false);
+    let size_matches = fs::metadata(model_path)
+        .map(|metadata| metadata.len() == MODEL_SIZE)
+        .unwrap_or(false);
+    marker_matches && size_matches
+}
+
+fn verify_model_contents(model_path: &std::path::Path) -> Result<(), String> {
+    let mut file = File::open(model_path)
+        .map_err(|error| format!("Could not open the installed model for verification: {error}"))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 1024 * 1024];
+
+    loop {
+        let count = file
+            .read(&mut buffer)
+            .map_err(|error| format!("Could not verify the installed model: {error}"))?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+
+    if hex::encode(hasher.finalize()) != MODEL_SHA256 {
+        return Err(
+            "The installed model failed its integrity check. Download it again from Settings."
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn runtime_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path()
+        .resource_dir()
+        .map(|path| path.join("llama").join("llama-server.exe"))
+        .map_err(|error| format!("Could not locate the bundled llama.cpp runtime: {error}"))
+}
+
+fn runtime_is_available(app: &AppHandle) -> bool {
+    let Ok(server_path) = runtime_path(app) else {
+        return false;
+    };
+    let Some(directory) = server_path.parent() else {
+        return false;
+    };
+    server_path.is_file()
+        && directory.join("llama.dll").is_file()
+        && directory.join("llama-common.dll").is_file()
+        && directory.join("ggml.dll").is_file()
+}
+
+fn server_is_running(runtime: &ModelRuntime) -> Result<bool, String> {
+    let mut server = runtime
+        .server
+        .lock()
+        .map_err(|_| "The local model process state is unavailable".to_string())?;
+    let child_status = server
+        .as_mut()
+        .map(|child| child.try_wait())
+        .transpose()
+        .map_err(|error| format!("Could not check the local model process: {error}"))?;
+    let Some(child_status) = child_status else {
+        return Ok(false);
+    };
+    match child_status {
+        None => Ok(true),
+        Some(_) => {
+            *server = None;
+            if let Ok(mut api_key) = runtime.api_key.lock() {
+                *api_key = None;
+            }
+            Ok(false)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn get_model_status(
+    app: AppHandle,
+    runtime: State<'_, ModelRuntime>,
+) -> Result<ModelStatus, String> {
+    let (model_path, marker_path) = model_paths(&app)?;
+    let partial_path = model_path.with_extension("gguf.part");
+    let downloaded_bytes = fs::metadata(&model_path)
+        .or_else(|_| fs::metadata(partial_path))
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+    let running = server_is_running(runtime.inner())?;
+    Ok(ModelStatus {
+        installed: model_is_verified(&model_path, &marker_path),
+        downloading: runtime.download_active.load(Ordering::Acquire),
+        downloaded_bytes,
+        total_bytes: MODEL_SIZE,
+        model_path: model_path.to_string_lossy().into_owned(),
+        runtime_available: runtime_is_available(&app),
+        running,
+    })
+}
+
+#[tauri::command]
+pub async fn download_model(
+    app: AppHandle,
+    runtime: State<'_, ModelRuntime>,
+) -> Result<String, String> {
+    if runtime
+        .download_active
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("A model download is already in progress".to_string());
+    }
+
+    runtime.cancel_download.store(false, Ordering::Release);
+    let app = app.clone();
+    let runtime = runtime.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = download_model_blocking(&app, &runtime);
+        runtime.download_active.store(false, Ordering::Release);
+        result
+    })
+    .await
+    .map_err(|error| format!("The model download stopped unexpectedly: {error}"))?
+}
+
+#[tauri::command]
+pub fn cancel_model_download(runtime: State<'_, ModelRuntime>) -> bool {
+    if runtime.download_active.load(Ordering::Acquire) {
+        runtime.cancel_download.store(true, Ordering::Release);
+        true
+    } else {
+        false
+    }
+}
+
+fn download_model_blocking(app: &AppHandle, runtime: &ModelRuntime) -> Result<String, String> {
+    let (model_path, marker_path) = model_paths(app)?;
+    if model_path.is_file() {
+        let has_expected_size =
+            fs::metadata(&model_path).is_ok_and(|metadata| metadata.len() == MODEL_SIZE);
+        if has_expected_size && verify_model_contents(&model_path).is_ok() {
+            fs::write(&marker_path, format!("{MODEL_SHA256}\n"))
+                .map_err(|error| format!("Could not record the model integrity check: {error}"))?;
+            return Ok(model_path.to_string_lossy().into_owned());
+        }
+        fs::remove_file(&model_path).map_err(|error| {
+            format!("Could not remove the damaged model before redownloading it: {error}")
+        })?;
+    }
+    let _ = fs::remove_file(&marker_path);
+
+    let directory = model_path
+        .parent()
+        .ok_or_else(|| "Could not determine the model folder".to_string())?;
+    fs::create_dir_all(directory)
+        .map_err(|error| format!("Could not create the model folder: {error}"))?;
+    let temporary_path = model_path.with_extension("gguf.part");
+    let download_result = (|| {
+        let url = format!(
+            "https://huggingface.co/{MODEL_REPOSITORY}/resolve/{MODEL_REVISION}/{MODEL_FILENAME}?download=true"
+        );
+        let client = reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(2 * 60 * 60))
+            .build()
+            .map_err(|error| format!("Could not prepare the secure model download: {error}"))?;
+        let mut response = client
+            .get(url)
+            .header(reqwest::header::USER_AGENT, "Amanda-Desktop/0.1.0")
+            .send()
+            .map_err(|error| format!("Model download failed: {error}"))?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "Model download failed with HTTP status {}",
+                response.status()
+            ));
+        }
+        if let Some(content_length) = response.content_length() {
+            if content_length != MODEL_SIZE {
+                return Err(format!(
+                    "The model server reported an unexpected file size ({content_length} bytes)"
+                ));
+            }
+        }
+
+        let mut output = File::create(&temporary_path)
+            .map_err(|error| format!("Could not create the model download file: {error}"))?;
+        let mut hasher = Sha256::new();
+        let mut downloaded = 0_u64;
+        let mut next_progress = 0_u64;
+        let mut buffer = vec![0_u8; 1024 * 1024];
+
+        loop {
+            if runtime.cancel_download.load(Ordering::Acquire) {
+                return Err("Model download cancelled".to_string());
+            }
+            let count = response
+                .read(&mut buffer)
+                .map_err(|error| format!("The model download was interrupted: {error}"))?;
+            if count == 0 {
+                break;
+            }
+            output
+                .write_all(&buffer[..count])
+                .map_err(|error| format!("Could not save the model file: {error}"))?;
+            hasher.update(&buffer[..count]);
+            downloaded += count as u64;
+
+            if downloaded >= next_progress {
+                let _ = app.emit(
+                    "model-download-progress",
+                    DownloadProgress {
+                        downloaded_bytes: downloaded,
+                        total_bytes: MODEL_SIZE,
+                        percent: ((downloaded.saturating_mul(100) / MODEL_SIZE).min(100)) as u8,
+                    },
+                );
+                next_progress = downloaded.saturating_add(5 * 1024 * 1024);
+            }
+        }
+
+        output
+            .flush()
+            .and_then(|_| output.sync_all())
+            .map_err(|error| format!("Could not finish saving the model: {error}"))?;
+        if downloaded != MODEL_SIZE {
+            return Err(format!(
+                "The downloaded model has the wrong size ({downloaded} bytes; expected {MODEL_SIZE})"
+            ));
+        }
+        let actual_hash = hex::encode(hasher.finalize());
+        if actual_hash != MODEL_SHA256 {
+            return Err(
+                "The model integrity check failed; the incomplete file was discarded".to_string(),
+            );
+        }
+        if runtime.cancel_download.load(Ordering::Acquire) {
+            return Err("Model download cancelled".to_string());
+        }
+
+        fs::rename(&temporary_path, &model_path)
+            .map_err(|error| format!("Could not install the verified model: {error}"))?;
+        fs::write(&marker_path, format!("{MODEL_SHA256}\n"))
+            .map_err(|error| format!("Could not record the model integrity check: {error}"))?;
+        let _ = app.emit(
+            "model-download-progress",
+            DownloadProgress {
+                downloaded_bytes: MODEL_SIZE,
+                total_bytes: MODEL_SIZE,
+                percent: 100,
+            },
+        );
+        Ok(model_path.to_string_lossy().into_owned())
+    })();
+
+    if download_result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+    download_result
+}
+
+#[tauri::command]
+pub async fn start_local_model(
+    app: AppHandle,
+    runtime: State<'_, ModelRuntime>,
+) -> Result<ModelConnection, String> {
+    let app = app.clone();
+    let runtime = runtime.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || start_local_model_blocking(&app, &runtime))
+        .await
+        .map_err(|error| format!("The local model could not start: {error}"))?
+}
+
+fn start_local_model_blocking(
+    app: &AppHandle,
+    runtime: &ModelRuntime,
+) -> Result<ModelConnection, String> {
+    if server_is_running(runtime)? {
+        let api_key = runtime
+            .api_key
+            .lock()
+            .map_err(|_| "The local model credentials are unavailable".to_string())?
+            .clone()
+            .ok_or_else(|| "The running model session could not be verified".to_string())?;
+        return Ok(ModelConnection {
+            base_url: format!("http://127.0.0.1:{SERVER_PORT}"),
+            api_key,
+        });
+    }
+
+    let (model_path, marker_path) = model_paths(app)?;
+    if !model_is_verified(&model_path, &marker_path) {
+        return Err("Download and verify Qwen3.5-2B before loading it".to_string());
+    }
+    verify_model_contents(&model_path)?;
+    if !runtime_is_available(app) {
+        return Err(
+            "The bundled llama.cpp runtime is missing. Reinstall Amanda to repair it".to_string(),
+        );
+    }
+    let server_path = runtime_path(app)?;
+    let api_key = Uuid::new_v4().simple().to_string();
+    let api_key_path = model_path.with_file_name(format!(".runtime-api-key-{}.tmp", api_key));
+    fs::write(&api_key_path, &api_key)
+        .map_err(|error| format!("Could not prepare private local model credentials: {error}"))?;
+    let _api_key_file = RemoveFileOnDrop(api_key_path.clone());
+    let mut command = Command::new(server_path);
+    command
+        .arg("--model")
+        .arg(&model_path)
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg(SERVER_PORT.to_string())
+        .args([
+            "--ctx-size",
+            CONTEXT_SIZE,
+            "--threads",
+            CPU_THREADS,
+            "--threads-batch",
+            CPU_THREADS,
+            "--batch-size",
+            "128",
+            "--api-key-file",
+        ])
+        .arg(&api_key_path)
+        .args([
+            "--cors-origins",
+            "http://localhost:8080,http://tauri.localhost,tauri://localhost",
+            "--jinja",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Could not start the bundled llama.cpp runtime: {error}"))?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .map_err(|error| format!("Could not check local model readiness: {error}"))?;
+    let health_url = format!("http://127.0.0.1:{SERVER_PORT}/health");
+    let deadline = Instant::now() + Duration::from_secs(180);
+
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| format!("Could not check the local model process: {error}"))?
+        {
+            return Err(format!(
+                "llama.cpp exited before the model was ready (exit status {status})"
+            ));
+        }
+        if client
+            .get(&health_url)
+            .send()
+            .is_ok_and(|response| response.status().is_success())
+        {
+            *runtime
+                .server
+                .lock()
+                .map_err(|_| "The local model process state is unavailable".to_string())? =
+                Some(child);
+            *runtime
+                .api_key
+                .lock()
+                .map_err(|_| "The local model credentials are unavailable".to_string())? =
+                Some(api_key.clone());
+            return Ok(ModelConnection {
+                base_url: format!("http://127.0.0.1:{SERVER_PORT}"),
+                api_key,
+            });
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("The model did not finish loading within three minutes".to_string());
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+}
+
+#[tauri::command]
+pub fn stop_local_model(runtime: State<'_, ModelRuntime>) -> Result<(), String> {
+    stop_server(runtime.inner())
+}
+
+fn stop_server(runtime: &ModelRuntime) -> Result<(), String> {
+    let mut server = runtime
+        .server
+        .lock()
+        .map_err(|_| "The local model process state is unavailable".to_string())?;
+    if let Some(mut child) = server.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    if let Ok(mut api_key) = runtime.api_key.lock() {
+        *api_key = None;
+    }
+    Ok(())
+}
+
+pub fn shutdown(runtime: &ModelRuntime) {
+    runtime.cancel_download.store(true, Ordering::Release);
+    let _ = stop_server(runtime);
+}

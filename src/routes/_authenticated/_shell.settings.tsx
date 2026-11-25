@@ -1,8 +1,22 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Cpu, ExternalLink, ShieldCheck } from "lucide-react";
+import {
+  Cpu,
+  Download,
+  ExternalLink,
+  LoaderCircle,
+  ShieldCheck,
+  Square,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LocalDataTransfer } from "@/components/local-data-transfer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,13 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { isDesktopApp } from "@/lib/database";
 import { useTheme, type Theme } from "@/lib/theme";
 
 export const Route = createFileRoute("/_authenticated/_shell/settings")({
   head: () => ({
     meta: [
       { title: "Settings — Amanda" },
-      { name: "description", content: "Appearance, AI provider, and account." },
+      { name: "description", content: "Appearance, local AI model, and privacy." },
       { property: "og:title", content: "Settings — Amanda" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -27,8 +42,166 @@ export const Route = createFileRoute("/_authenticated/_shell/settings")({
   component: SettingsPage,
 });
 
+type ModelStatus = {
+  installed: boolean;
+  downloading: boolean;
+  downloadedBytes: number;
+  totalBytes: number;
+  modelPath: string;
+  runtimeAvailable: boolean;
+  running: boolean;
+};
+
+type ModelProgress = {
+  downloadedBytes: number;
+  totalBytes: number;
+  percent: number;
+};
+
+type ModelConnection = { baseUrl: string; apiKey: string };
+
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const queryClient = useQueryClient();
+  const desktop = isDesktopApp();
+  const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [connection, setConnection] = useState<ModelConnection | null>(null);
+  const [testResponse, setTestResponse] = useState<string | null>(null);
+  const {
+    data: modelStatus,
+    refetch: refreshModelStatus,
+    isLoading: modelStatusLoading,
+  } = useQuery({
+    queryKey: ["model-status"],
+    queryFn: () => invoke<ModelStatus>("get_model_status"),
+    enabled: desktop,
+  });
+
+  useEffect(() => {
+    if (!desktop) return;
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen<ModelProgress>("model-download-progress", (event) => {
+      if (!disposed) setDownloadProgress(event.payload);
+    }).then((unsubscribe) => {
+      if (disposed) unsubscribe();
+      else unlisten = unsubscribe;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [desktop]);
+
+  async function handleDownload() {
+    setBusy(true);
+    setDownloadProgress({
+      downloadedBytes: 0,
+      totalBytes: modelStatus?.totalBytes ?? 1,
+      percent: 0,
+    });
+    try {
+      await invoke<string>("download_model");
+      setDownloadProgress(null);
+      await refreshModelStatus();
+      toast.success("Qwen3.5-2B is verified and ready");
+    } catch (error) {
+      setDownloadProgress(null);
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCancelDownload() {
+    try {
+      await invoke<boolean>("cancel_model_download");
+      toast.message("Cancelling model download…");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleLoadModel() {
+    setBusy(true);
+    try {
+      const modelConnection = await invoke<ModelConnection>("start_local_model");
+      setConnection(modelConnection);
+      queryClient.setQueryData(["model-connection"], modelConnection);
+      await refreshModelStatus();
+      toast.success("Qwen3.5-2B is loaded locally");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUnloadModel() {
+    setBusy(true);
+    try {
+      await invoke("stop_local_model");
+      setConnection(null);
+      queryClient.setQueryData(["model-connection"], null);
+      setTestResponse(null);
+      await refreshModelStatus();
+      toast.success("The local model was unloaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTestModel() {
+    if (!connection) return;
+    setBusy(true);
+    setTestResponse(null);
+    try {
+      const response = await fetch(`${connection.baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${connection.apiKey}`,
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Reply with: Amanda local model test passed." }],
+          max_tokens: 40,
+          temperature: 0.2,
+          stream: false,
+        }),
+      });
+      if (!response.ok) throw new Error(`The local model returned HTTP ${response.status}`);
+      const result = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const answer = result.choices?.[0]?.message?.content?.trim();
+      if (!answer) throw new Error("The model returned an empty test response");
+      setTestResponse(answer);
+      toast.success("Model test completed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const statusLabel = !desktop
+    ? "Desktop app required"
+    : modelStatusLoading
+      ? "Checking…"
+      : modelStatus?.running
+        ? "Loaded"
+        : modelStatus?.installed
+          ? "Installed"
+          : "Not installed";
+  const currentProgress = downloadProgress;
+  const isDownloading = currentProgress !== null || modelStatus?.downloading === true;
+  const progressBytes = currentProgress?.downloadedBytes ?? modelStatus?.downloadedBytes ?? 0;
+  const progressPercent =
+    currentProgress?.percent ??
+    Math.min(100, Math.floor((progressBytes / (modelStatus?.totalBytes || 1)) * 100));
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
@@ -38,7 +211,7 @@ function SettingsPage() {
         <h2 className="text-sm font-semibold">Appearance</h2>
         <div className="mt-3 flex max-w-xs flex-col gap-1.5">
           <Label>Theme</Label>
-          <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
+          <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -54,7 +227,7 @@ function SettingsPage() {
       <section className="mt-10">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold">Local AI model</h2>
-          <Badge variant="secondary">Not installed</Badge>
+          <Badge variant={modelStatus?.running ? "default" : "secondary"}>{statusLabel}</Badge>
         </div>
         <Card className="mt-3">
           <CardHeader>
@@ -63,9 +236,9 @@ function SettingsPage() {
                 <Cpu aria-hidden="true" className="size-4" />
               </div>
               <div className="min-w-0">
-                <CardTitle className="text-base">Qwen3.5-2B</CardTitle>
+                <CardTitle className="text-base">Qwen3.5-2B · Q4_K_M</CardTitle>
                 <CardDescription className="mt-1">
-                  Intended local model · download is separate from the app
+                  1.40 GB model download · kept separate from the Amanda installer
                 </CardDescription>
               </div>
             </div>
@@ -77,20 +250,138 @@ function SettingsPage() {
                 className="mt-0.5 size-4 shrink-0 text-muted-foreground"
               />
               <p className="text-muted-foreground">
-                Amanda is still running as a web app. The desktop runtime needed to download,
-                install, and run a model on this device is not set up yet, so no model is being
-                downloaded or used.
+                Model files are downloaded from Hugging Face over HTTPS and checked against a pinned
+                SHA-256 digest before Amanda installs them. Inference runs on this device and the
+                model is not loaded until you ask for it.
               </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              The official Qwen release is in Hugging Face Transformers format; it does not provide
-              an official GGUF file. We will only offer an in-app installer once a compatible
-              runtime and verified model package are ready.
+
+            {!desktop && (
+              <p className="text-sm text-muted-foreground">
+                The browser preview cannot install or run local files. Use Amanda&apos;s Windows
+                desktop installer for local model setup.
+              </p>
+            )}
+            {desktop && modelStatus && !modelStatus.runtimeAvailable && (
+              <p className="text-sm text-destructive">
+                The bundled llama.cpp runtime is missing. Reinstall the Windows desktop app before
+                setting up the model.
+              </p>
+            )}
+
+            {isDownloading && (
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between gap-3 text-sm">
+                  <span>Downloading and verifying model</span>
+                  <span className="tabular-nums">{progressPercent}%</span>
+                </div>
+                <progress
+                  aria-label="Qwen3.5-2B download progress"
+                  className="h-2 w-full accent-primary"
+                  max={100}
+                  value={progressPercent}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(progressBytes / 1_000_000_000).toFixed(2)} GB of 1.40 GB
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {!modelStatus?.installed && !isDownloading && (
+                <Button
+                  onClick={() => void handleDownload()}
+                  disabled={
+                    !desktop || !modelStatus?.runtimeAvailable || busy || modelStatusLoading
+                  }
+                >
+                  {busy ? (
+                    <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                  ) : (
+                    <Download data-icon="inline-start" />
+                  )}
+                  Download model
+                </Button>
+              )}
+              {isDownloading && (
+                <Button variant="outline" onClick={() => void handleCancelDownload()}>
+                  <Square data-icon="inline-start" />
+                  Cancel download
+                </Button>
+              )}
+              {modelStatus?.installed && !modelStatus.running && (
+                <>
+                  <Button
+                    onClick={() => void handleLoadModel()}
+                    disabled={!desktop || !modelStatus.runtimeAvailable || busy}
+                  >
+                    {busy ? (
+                      <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                    ) : (
+                      <Cpu data-icon="inline-start" />
+                    )}
+                    Load model
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleDownload()}
+                    disabled={!desktop || !modelStatus.runtimeAvailable || busy}
+                  >
+                    <ShieldCheck data-icon="inline-start" />
+                    Verify or repair model
+                  </Button>
+                </>
+              )}
+              {modelStatus?.running && (
+                <>
+                  <Button onClick={() => void handleTestModel()} disabled={busy || !connection}>
+                    {busy ? (
+                      <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                    ) : (
+                      <ShieldCheck data-icon="inline-start" />
+                    )}
+                    Test model
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleUnloadModel()}
+                    disabled={busy}
+                  >
+                    <Trash2 data-icon="inline-start" />
+                    Unload model
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {testResponse && (
+              <div className="rounded-md border border-border p-3" aria-live="polite">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Live model test response
+                </p>
+                <p className="mt-1 text-sm">{testResponse}</p>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Q4_K_M is a community conversion by bartowski from the official Qwen checkpoint.
+              Runtime: llama.cpp b9222, CPU-only, 4,096-token context, two inference threads. No
+              performance claim is made for your PC until tested on that device.
             </p>
-            <div>
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" asChild>
                 <a href="https://huggingface.co/Qwen/Qwen3.5-2B" target="_blank" rel="noreferrer">
-                  View official model files
+                  Official Qwen source
+                  <ExternalLink data-icon="inline-end" />
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a
+                  href="https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF/tree/7d26695454df6de5fbcce2e58681e62dae06ce43"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Quantized model source
                   <ExternalLink data-icon="inline-end" />
                 </a>
               </Button>
@@ -100,11 +391,16 @@ function SettingsPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-sm font-semibold">Current AI service</h2>
+        <h2 className="text-sm font-semibold">Backup and restore</h2>
+        <LocalDataTransfer />
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold">Local data and privacy</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Amanda desktop stores your project data in a local SQLite database and does not require an
-          account. This browser preview is for the interface only; local model download and Qwen
-          inference are not ready yet.
+          Amanda stores project data in a local SQLite database and does not require an account. The
+          model runs on this device. The browser preview is interface-only and cannot access the
+          desktop model runtime.
         </p>
       </section>
     </div>

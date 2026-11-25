@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Archive,
+  Brain,
   FlaskConical,
   FolderKanban,
   Home,
@@ -66,6 +67,7 @@ const NAV_ITEMS = [
   { to: "/notes", label: "Daily Notes", icon: NotebookPen },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/research", label: "Research", icon: FlaskConical },
+  { to: "/memory", label: "Memory", icon: Brain },
   { to: "/archive", label: "Archive", icon: Archive },
 ] as const;
 
