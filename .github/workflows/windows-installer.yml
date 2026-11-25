@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - "v0/local-model-first-run"
       - "ui/**"
       - "fix/**"
@@ -41,18 +42,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Format changed frontend files
-        run: >-
-          bun x prettier --write
-          src/components/app-shell.tsx
-          src/components/local-research-library.tsx
-          src/components/local-workspace-chat.tsx
-          src/components/temporary-chat.tsx
-          src/routes/_authenticated/_shell.index.tsx
-          src/routes/_authenticated/_shell.w.$workspaceId.tsx
-          src/routes/_authenticated/_shell.notes.tsx
-          src/routes/_authenticated/_shell.settings.tsx
-          src/lib/pending-workspace-prompt.ts
-          src/styles.css
+        shell: pwsh
+        run: |
+          bun x prettier --write src/components/app-shell.tsx src/components/local-research-library.tsx src/components/local-workspace-chat.tsx src/components/temporary-chat.tsx src/routes/_authenticated/_shell.index.tsx 'src/routes/_authenticated/_shell.w.$workspaceId.tsx' src/routes/_authenticated/_shell.notes.tsx src/routes/_authenticated/_shell.settings.tsx src/lib/pending-workspace-prompt.ts src/styles.css
 
       - name: Check frontend lint
         run: bun run lint

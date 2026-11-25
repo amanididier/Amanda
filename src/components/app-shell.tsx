@@ -91,6 +91,24 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       if (!selectedPath) { queryClient.setQueryData(["model-boot-state"], "missing"); return; }
       const connection = await invoke<{ baseUrl: string; apiKey: string }>("start_local_model", { modelPath: selectedPath });
+      // Do not enable the composer until the model returns an actual completion.
+      const testResponse = await fetch(`${connection.baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${connection.apiKey}`,
+        },
+        signal: AbortSignal.timeout(45_000),
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Reply with exactly: Amanda is ready." }],
+          max_tokens: 24,
+          temperature: 0.1,
+          stream: false,
+        }),
+      });
+      if (!testResponse.ok) throw new Error(`The local model test returned HTTP ${testResponse.status}`);
+      const testResult = (await testResponse.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      if (!testResult.choices?.[0]?.message?.content?.trim()) throw new Error("The model started but did not return a chat response.");
       queryClient.setQueryData(["model-connection"], connection);
       queryClient.setQueryData(["model-boot-state"], "ready");
       void queryClient.invalidateQueries({ queryKey: ["model-status"] });
