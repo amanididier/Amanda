@@ -191,6 +191,7 @@ function SettingsPage() {
       await refreshModelStatus();
       toast.success("Local model authentication repaired and verified");
     } catch (error) {
+      await refreshModelStatus();
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
