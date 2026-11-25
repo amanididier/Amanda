@@ -24,8 +24,12 @@ struct BraveResult { title: String, url: String, #[serde(default)] description: 
 #[derive(Deserialize)]
 struct FirecrawlResponse {
     #[serde(default)] success: bool,
-    #[serde(default)] data: Vec<FirecrawlResult>,
+    #[serde(default)] data: FirecrawlData,
     error: Option<String>,
+}
+#[derive(Deserialize, Default)]
+struct FirecrawlData {
+    #[serde(default)] web: Vec<FirecrawlResult>,
 }
 #[derive(Deserialize)]
 struct FirecrawlResult {
@@ -113,7 +117,7 @@ fn perform_search(provider: &str, key: &str, query: &str, limit: u8) -> Result<V
     if provider == "firecrawl" {
         let payload: FirecrawlResponse = response.json().map_err(|_| "Firecrawl returned an unreadable response".to_string())?;
         if !payload.success { return Err(payload.error.unwrap_or_else(|| "Firecrawl could not complete the search".to_string())); }
-        Ok(payload.data.into_iter().filter(|item| item.url.starts_with("https://")).take(limit as usize)
+        Ok(payload.data.web.into_iter().filter(|item| item.url.starts_with("https://")).take(limit as usize)
             .map(|item| ResearchResult {
                 title: if item.title.trim().is_empty() { item.url.clone() } else { item.title.chars().take(300).collect() },
                 url: item.url.chars().take(2_000).collect(),

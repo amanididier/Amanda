@@ -56,6 +56,7 @@ function WorkspacePage() {
   const queryClient = useQueryClient();
   const { data: workspace, isLoading } = useQuery(workspaceQuery(workspaceId));
   const { data: tasks = [] } = useQuery(workspaceTasksQuery(workspaceId));
+  const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "roadmap">("chat");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [descriptionDraft, setDescriptionDraft] = useState("");
@@ -159,61 +160,39 @@ function WorkspacePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
+    <div className="flex h-full min-h-0 flex-col px-6 py-5">
       <p className="text-xs tracking-wider text-muted-foreground uppercase">
         {workspace.workspace_type === "research" ? "Research hub" : "Project"}
       </p>
       <h1 className="mt-1 font-serif text-3xl tracking-tight">{workspace.name}</h1>
 
-      <section className="mt-6 rounded-lg border border-border p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold">Project details</h2>
-          {!editingDescription ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditingDescription(true)}
-              disabled={!desktop}
-            >
-              <Pencil data-icon="inline-start" /> Edit
-            </Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDescriptionDraft(workspace.description);
-                  setEditingDescription(false);
-                }}
-              >
-                <X data-icon="inline-start" /> Cancel
-              </Button>
-              <Button size="sm" onClick={() => void saveDescription()}>
-                Save
-              </Button>
+      <div className="mt-2 flex shrink-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {editingDescription ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="workspace-description">Workspace objective</Label>
+              <Textarea id="workspace-description" value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} placeholder="What are you trying to achieve?" className="min-h-20" />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => void saveDescription()}>Save details</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setDescriptionDraft(workspace.description); setEditingDescription(false); }}>Cancel</Button>
+              </div>
             </div>
+          ) : (
+            <p className="line-clamp-2 text-sm text-muted-foreground">{workspace.description || "Your goal, conversations, tasks and roadmap in one place."}</p>
           )}
         </div>
-        {editingDescription ? (
-          <div className="mt-3 flex flex-col gap-1.5">
-            <Label htmlFor="workspace-description">Description and objective</Label>
-            <Textarea
-              id="workspace-description"
-              value={descriptionDraft}
-              onChange={(event) => setDescriptionDraft(event.target.value)}
-              placeholder="What is this project for? What does success look like?"
-              className="min-h-24"
-            />
-          </div>
-        ) : (
-          <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-            {workspace.description ||
-              "Add a description and objective so this workspace has a clear direction."}
-          </p>
-        )}
-      </section>
+        {!editingDescription && <Button variant="ghost" size="sm" onClick={() => setEditingDescription(true)} disabled={!desktop}><Pencil data-icon="inline-start" /> Edit details</Button>}
+      </div>
+      <nav className="mt-5 flex shrink-0 items-center gap-8 border-b border-border" role="tablist" aria-label="Workspace sections">
+        {([["chat", "Chat"], ["tasks", "Tasks"], ["roadmap", "Roadmap"]] as const).map(([tab, label]) => (
+          <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={"relative -mb-px border-b-2 px-0 pb-3 text-sm transition-colors hover:text-foreground " + (activeTab === tab ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground")}>
+            {label}{tab === "tasks" && tasks.length > 0 && <span className="ml-2 text-xs text-muted-foreground">{tasks.length}</span>}
+          </button>
+        ))}
+      </nav>
 
+      {activeTab === "tasks" && (
+        <div className="min-h-0 flex-1 overflow-y-auto py-5">
       <section className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -321,10 +300,20 @@ function WorkspacePage() {
           )}
         </div>
       </section>
+        </div>
+      )}
 
-      {workspace.workspace_type === "project" && <LocalRoadmapBoard workspaceId={workspace.id} />}
+      {activeTab === "roadmap" && (
+        <div className="min-h-0 flex-1 overflow-y-auto py-5">
+          {workspace.workspace_type === "project" ? <LocalRoadmapBoard workspaceId={workspace.id} /> : <p className="py-10 text-center text-sm text-muted-foreground">Roadmaps are available in project workspaces.</p>}
+        </div>
+      )}
 
-      <LocalWorkspaceChat workspace={workspace} tasks={tasks} />
+      {activeTab === "chat" && (
+        <div className="min-h-0 flex-1 overflow-hidden pt-2">
+          <LocalWorkspaceChat workspace={workspace} tasks={tasks} landing workspaceLayout />
+        </div>
+      )}
 
       <AlertDialog
         open={deleteTarget !== null}
