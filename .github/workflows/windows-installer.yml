@@ -1,4 +1,4 @@
-name: Windows installer
+name: Windows installer # Build the latest workspace chat changes
 
 on:
   workflow_dispatch:
