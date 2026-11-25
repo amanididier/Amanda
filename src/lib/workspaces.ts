@@ -1,5 +1,7 @@
 import { executeSql, selectRows } from "@/lib/database";
 
+export const GENERAL_ASSISTANT_WORKSPACE_ID = "__amanda_general__";
+
 export type WorkspaceType = "project" | "research";
 
 export type LocalWorkspace = {
@@ -8,6 +10,7 @@ export type LocalWorkspace = {
   description: string;
   workspace_type: WorkspaceType;
   status: "active" | "archived";
+  is_system: number;
   created_at: string;
   updated_at: string;
 };
@@ -29,6 +32,7 @@ export async function createWorkspace(type: WorkspaceType, name: string, descrip
     description,
     workspace_type: type,
     status: "active",
+    is_system: 0,
     created_at: now,
     updated_at: now,
   };
