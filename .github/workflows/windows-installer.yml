@@ -6,6 +6,7 @@ on:
     branches:
       - "v0/local-model-first-run"
       - "ui/**"
+      - "fix/**"
     tags:
       - "v*"
   pull_request:
@@ -47,6 +48,7 @@ jobs:
           src/components/local-workspace-chat.tsx
           src/components/temporary-chat.tsx
           src/routes/_authenticated/_shell.index.tsx
+          src/routes/_authenticated/_shell.w.$workspaceId.tsx
           src/routes/_authenticated/_shell.notes.tsx
           src/routes/_authenticated/_shell.settings.tsx
           src/lib/pending-workspace-prompt.ts
