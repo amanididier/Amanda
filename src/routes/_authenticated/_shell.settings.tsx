@@ -156,7 +156,9 @@ function SettingsPage() {
   useEffect(() => {
     if (!desktop || localModels.length === 0 || selectedModelPath) return;
     let savedPath = "";
-    try { savedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch {}
+    try { savedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch {
+      savedPath = "";
+    }
     const preferred = localModels.find((item) => item.path === savedPath) ?? localModels.find((item) => item.isDefault) ?? localModels[0];
     if (preferred) setSelectedModelPath(preferred.path);
   }, [desktop, localModels, selectedModelPath]);
@@ -473,7 +475,9 @@ function SettingsPage() {
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm text-muted-foreground">{localModels.length} compatible model{localModels.length === 1 ? "" : "s"} detected</span><Button variant="outline" size="sm" onClick={() => void refreshLocalModels()}>Scan again</Button></div>
           {localModels.length > 0 ? <>
-            <Select value={selectedModelPath} onValueChange={(path) => { setSelectedModelPath(path); try { window.localStorage.setItem("amanda-selected-model-path", path); } catch {} }}>
+            <Select value={selectedModelPath} onValueChange={(path) => { setSelectedModelPath(path); try { window.localStorage.setItem("amanda-selected-model-path", path); } catch (error) {
+                  console.warn("Could not persist the selected model path", error);
+                } }}>
               <SelectTrigger><SelectValue placeholder="Choose an installed model" /></SelectTrigger>
               <SelectContent>{localModels.map((item) => <SelectItem key={item.path} value={item.path}>{item.name} · {(item.sizeBytes / 1_000_000_000).toFixed(2)} GB</SelectItem>)}</SelectContent>
             </Select>
