@@ -2,6 +2,11 @@ name: Windows installer # Build the latest workspace chat changes
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Version tag to publish, for example v0.1.2. Leave blank for a normal CI installer."
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -55,12 +60,23 @@ jobs:
       - name: Run frontend tests
         run: bun run test
 
+      - name: Validate release version
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != '' }}
+        shell: pwsh
+        run: |
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $expected = "v$($config.version)"
+          $requested = if ("${{ inputs.release_tag }}") { "${{ inputs.release_tag }}" } else { "${{ github.ref_name }}" }
+          if ($requested -ne $expected) {
+            throw "Release tag $requested does not match app version $expected. Update tauri.conf.json first."
+          }
+
       - name: Build NSIS installer (non-release builds)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') && inputs.release_tag == '' }}
         run: bun run desktop:build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload installer artifact
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') && inputs.release_tag == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: Amanda-Windows-Installer
@@ -69,15 +85,16 @@ jobs:
           retention-days: 14
 
       - name: Build, sign, and publish updater release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != '' }}
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Amanda ${{ github.ref_name }}
+          tagName: ${{ inputs.release_tag || github.ref_name }}
+          releaseCommitish: ${{ github.sha }}
+          releaseName: Amanda ${{ inputs.release_tag || github.ref_name }}
           releaseBody: "Amanda update release. Download the installer below or update directly from the app."
           args: --bundles nsis
           uploadUpdaterJson: true
