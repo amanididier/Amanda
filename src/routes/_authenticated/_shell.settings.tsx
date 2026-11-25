@@ -191,6 +191,8 @@ function SettingsPage() {
       await refreshModelStatus();
       toast.success("Local model authentication repaired and verified");
     } catch (error) {
+      setConnection(null);
+      queryClient.setQueryData(["model-connection"], null);
       await refreshModelStatus();
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {
