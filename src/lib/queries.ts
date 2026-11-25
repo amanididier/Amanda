@@ -48,6 +48,7 @@ type LocalNote = {
   project_id: string | null;
   updated_at: string;
   archived_at: string | null;
+  images: string;
 };
 
 type LocalTask = {
