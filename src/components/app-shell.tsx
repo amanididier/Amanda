@@ -5,7 +5,6 @@ import {
   FlaskConical,
   FolderKanban,
   Home,
-  LogOut,
   Menu,
   Moon,
   MoreHorizontal,
@@ -56,7 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
+import { executeSql } from "@/lib/database";
 import { workspacesQuery } from "@/lib/queries";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -83,10 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           collapsed ? "w-14" : "w-60",
         )}
       >
-        <SidebarContent
-          collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((c) => !c)}
-        />
+        <SidebarContent collapsed={collapsed} onToggleCollapse={() => setCollapsed((c) => !c)} />
       </aside>
 
       {/* Mobile top bar + drawer */}
@@ -99,10 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-72 bg-sidebar p-0">
-              <SidebarContent
-                collapsed={false}
-                onNavigate={() => setMobileOpen(false)}
-              />
+              <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
           <span className="font-serif text-lg">Amanda</span>
@@ -138,60 +131,38 @@ function SidebarContent({
     id: string;
     name: string;
   } | null>(null);
-  const [userEmail, setUserEmail] = useState<string>("");
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? "");
-    });
-  }, []);
-
-  async function handleSignOut() {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
-  }
-
   async function handleArchive(id: string) {
-    const { error } = await supabase
-      .from("workspaces")
-      .update({ status: "archived" })
-      .eq("id", id);
-    if (error) {
+    try {
+      await executeSql("UPDATE workspaces SET status = $1, updated_at = $2 WHERE id = $3", [
+        "archived",
+        new Date().toISOString(),
+        id,
+      ]);
+      toast.success("Workspace archived");
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      if (pathname === `/w/${id}`) navigate({ to: "/" });
+    } catch {
       toast.error("Could not archive workspace");
-      return;
     }
-    toast.success("Workspace archived");
-    queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-    if (pathname === `/w/${id}`) navigate({ to: "/" });
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    const { error } = await supabase
-      .from("workspaces")
-      .delete()
-      .eq("id", deleteTarget.id);
-    if (error) {
+    try {
+      await executeSql("DELETE FROM workspaces WHERE id = $1", [deleteTarget.id]);
+      toast.success("Workspace deleted");
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      if (pathname === `/w/${deleteTarget.id}`) navigate({ to: "/" });
+    } catch {
       toast.error("Could not delete workspace");
-      return;
     }
-    toast.success("Workspace deleted");
-    setDeleteTarget(null);
-    queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-    if (pathname === `/w/${deleteTarget.id}`) navigate({ to: "/" });
   }
 
   return (
     <div className="flex h-full flex-col">
       {/* Wordmark */}
-      <div
-        className={cn(
-          "flex items-center gap-2 px-3 py-3",
-          collapsed && "justify-center px-0",
-        )}
-      >
+      <div className={cn("flex items-center gap-2 px-3 py-3", collapsed && "justify-center px-0")}>
         {!collapsed && (
           <Link to="/" className="font-serif text-xl tracking-tight">
             Amanda
@@ -256,14 +227,11 @@ function SidebarContent({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {workspaces?.length === 0 && (
-              <p className="px-2.5 py-2 text-xs text-muted-foreground">
-                No workspaces yet.
-              </p>
+              <p className="px-2.5 py-2 text-xs text-muted-foreground">No workspaces yet.</p>
             )}
             {workspaces?.map((ws) => {
               const active = pathname === `/w/${ws.id}`;
-              const Icon =
-                ws.workspace_type === "research" ? FlaskConical : FolderKanban;
+              const Icon = ws.workspace_type === "research" ? FlaskConical : FolderKanban;
               return (
                 <div
                   key={ws.id}
@@ -294,9 +262,7 @@ function SidebarContent({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                       <DropdownMenuItem
-                        onClick={() =>
-                          setRenameTarget({ id: ws.id, name: ws.name })
-                        }
+                        onClick={() => setRenameTarget({ id: ws.id, name: ws.name })}
                       >
                         Rename
                       </DropdownMenuItem>
@@ -306,9 +272,7 @@ function SidebarContent({
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() =>
-                          setDeleteTarget({ id: ws.id, name: ws.name })
-                        }
+                        onClick={() => setDeleteTarget({ id: ws.id, name: ws.name })}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         Delete
@@ -353,32 +317,18 @@ function SidebarContent({
           <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
           {!collapsed && "Settings"}
         </Link>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-sidebar-accent",
-                collapsed && "justify-center px-0",
-              )}
-              title={userEmail || "Account"}
-            >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                {(userEmail[0] ?? "A").toUpperCase()}
-              </span>
-              {!collapsed && (
-                <span className="truncate text-muted-foreground">
-                  {userEmail || "Account"}
-                </span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top">
-            <DropdownMenuItem onClick={handleSignOut}>
-              <LogOut className="h-3.5 w-3.5" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div
+          className={cn(
+            "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground",
+            collapsed && "justify-center px-0",
+          )}
+          title="Your data stays on this device"
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+            A
+          </span>
+          {!collapsed && <span className="truncate">Local workspace</span>}
+        </div>
       </div>
 
       {/* Create workspace dialog */}
@@ -412,15 +362,13 @@ function SidebarContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{deleteTarget?.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes the workspace, its conversations, notes,
-              and execution plan. This cannot be undone.
+              This permanently deletes the workspace, its conversations, notes, and execution plan.
+              This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>
-              Delete workspace
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete}>Delete workspace</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -451,13 +399,11 @@ export function CreateWorkspaceDialog({
     setBusy(true);
     try {
       const workspace = await createWorkspace(type, name);
-      toast.success(
-        type === "research" ? "Research hub created" : "Project created",
-      );
+      toast.success(type === "research" ? "Research hub created" : "Project created");
       setName("");
       onCreated(workspace.id);
-    } catch {
-      toast.error("Could not create workspace");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create workspace");
     } finally {
       setBusy(false);
     }
@@ -469,8 +415,7 @@ export function CreateWorkspaceDialog({
         <DialogHeader>
           <DialogTitle>New workspace</DialogTitle>
           <DialogDescription>
-            A workspace has its own conversation with Amanda, execution plan,
-            and notes.
+            A workspace has its own conversation with Amanda, execution plan, and notes.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
@@ -489,10 +434,7 @@ export function CreateWorkspaceDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Type</Label>
-            <Select
-              value={type}
-              onValueChange={(v) => setType(v as WorkspaceType)}
-            >
+            <Select value={type} onValueChange={(v) => setType(v as WorkspaceType)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -533,16 +475,17 @@ function RenameWorkspaceDialog({
 
   async function handleRename() {
     if (!target || !name.trim()) return;
-    const { error } = await supabase
-      .from("workspaces")
-      .update({ name: name.trim() })
-      .eq("id", target.id);
-    if (error) {
+    try {
+      await executeSql("UPDATE workspaces SET name = $1, updated_at = $2 WHERE id = $3", [
+        name.trim(),
+        new Date().toISOString(),
+        target.id,
+      ]);
+      toast.success("Workspace renamed");
+      onRenamed();
+    } catch {
       toast.error("Could not rename workspace");
-      return;
     }
-    toast.success("Workspace renamed");
-    onRenamed();
   }
 
   return (

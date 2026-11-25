@@ -102,9 +102,9 @@ function SettingsPage() {
       <section className="mt-10">
         <h2 className="text-sm font-semibold">Current AI service</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          This web build still uses its existing Lovable AI service. It is not offline or
-          local-first yet. The desktop version will need a separate on-device runtime before
-          conversations can use Qwen locally.
+          Amanda desktop stores your project data in a local SQLite database and does not require an
+          account. This browser preview is for the interface only; local model download and Qwen
+          inference are not ready yet.
         </p>
       </section>
     </div>

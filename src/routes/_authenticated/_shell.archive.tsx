@@ -4,7 +4,7 @@ import { ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { executeSql } from "@/lib/database";
 import { workspacesQuery } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/_shell/archive")({
@@ -25,16 +25,17 @@ function ArchivePage() {
   const { data: archived } = useQuery(workspacesQuery("archived"));
 
   async function handleRestore(id: string) {
-    const { error } = await supabase
-      .from("workspaces")
-      .update({ status: "active" })
-      .eq("id", id);
-    if (error) {
+    try {
+      await executeSql("UPDATE workspaces SET status = $1, updated_at = $2 WHERE id = $3", [
+        "active",
+        new Date().toISOString(),
+        id,
+      ]);
+      toast.success("Workspace restored");
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    } catch {
       toast.error("Could not restore workspace");
-      return;
     }
-    toast.success("Workspace restored");
-    queryClient.invalidateQueries({ queryKey: ["workspaces"] });
   }
 
   return (
@@ -42,9 +43,7 @@ function ArchivePage() {
       <h1 className="font-serif text-3xl tracking-tight">Archive</h1>
       <div className="mt-8 flex flex-col divide-y divide-border">
         {archived?.length === 0 && (
-          <p className="py-8 text-sm text-muted-foreground">
-            Nothing archived yet.
-          </p>
+          <p className="py-8 text-sm text-muted-foreground">Nothing archived yet.</p>
         )}
         {archived?.map((ws) => (
           <div key={ws.id} className="flex items-center gap-3 py-3">
@@ -54,11 +53,7 @@ function ArchivePage() {
                 {ws.workspace_type === "research" ? "Research hub" : "Project"}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleRestore(ws.id)}
-            >
+            <Button variant="outline" size="sm" onClick={() => handleRestore(ws.id)}>
               <ArchiveRestore className="h-3.5 w-3.5" />
               Restore
             </Button>

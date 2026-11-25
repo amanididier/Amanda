@@ -1,84 +1,103 @@
-import { supabase } from "@/integrations/supabase/client";
+import { executeSql, selectRows } from "@/lib/database";
 
 export type WorkspaceType = "project" | "research";
 
-/** Creates a workspace together with its default conversation. */
-export async function createWorkspace(
-  type: WorkspaceType,
-  name: string,
-  description = "",
-) {
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) throw new Error("Not signed in");
+export type LocalWorkspace = {
+  id: string;
+  name: string;
+  description: string;
+  workspace_type: WorkspaceType;
+  status: "active" | "archived";
+  created_at: string;
+  updated_at: string;
+};
 
-  const { data: workspace, error } = await supabase
-    .from("workspaces")
-    .insert({
-      user_id: userData.user.id,
-      name: name.trim() || "Untitled project",
-      description,
-      workspace_type: type,
-    })
-    .select()
-    .single();
-  if (error) throw error;
+type LocalConversation = {
+  id: string;
+  workspace_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
 
-  const { error: convError } = await supabase.from("conversations").insert({
-    workspace_id: workspace.id,
-    user_id: userData.user.id,
-    title: "Amanda",
-  });
-  if (convError) throw convError;
+/** Creates a workspace with its initial conversation and activity record. */
+export async function createWorkspace(type: WorkspaceType, name: string, description = "") {
+  const now = new Date().toISOString();
+  const workspace: LocalWorkspace = {
+    id: crypto.randomUUID(),
+    name: name.trim() || "Untitled project",
+    description,
+    workspace_type: type,
+    status: "active",
+    created_at: now,
+    updated_at: now,
+  };
+  const conversationId = crypto.randomUUID();
 
-  await supabase.from("workspace_activity").insert({
-    workspace_id: workspace.id,
-    user_id: userData.user.id,
-    activity_type: "workspace_created",
-    description: `Created ${type} “${workspace.name}”`,
-  });
+  await executeSql(
+    "INSERT INTO workspaces (id, name, description, workspace_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [
+      workspace.id,
+      workspace.name,
+      workspace.description,
+      workspace.workspace_type,
+      workspace.status,
+      now,
+      now,
+    ],
+  );
+  await executeSql(
+    "INSERT INTO conversations (id, workspace_id, title, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)",
+    [conversationId, workspace.id, "Amanda", now, now],
+  );
+  await executeSql(
+    "INSERT INTO workspace_activity (id, workspace_id, activity_type, description, created_at) VALUES ($1, $2, $3, $4, $5)",
+    [
+      crypto.randomUUID(),
+      workspace.id,
+      "workspace_created",
+      `Created ${type} “${workspace.name}”`,
+      now,
+    ],
+  );
 
   return workspace;
 }
 
 /** Returns the workspace's first conversation, creating one if missing. */
 export async function ensureConversation(workspaceId: string) {
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) throw new Error("Not signed in");
+  const existing = await selectRows<LocalConversation>(
+    "SELECT * FROM conversations WHERE workspace_id = $1 ORDER BY created_at ASC LIMIT 1",
+    [workspaceId],
+  );
+  if (existing[0]) return existing[0];
 
-  const { data: existing, error } = await supabase
-    .from("conversations")
-    .select("*")
-    .eq("workspace_id", workspaceId)
-    .order("created_at", { ascending: true })
-    .limit(1);
-  if (error) throw error;
-  const conversation = existing?.[0];
-  if (conversation) return conversation;
-
-  const { data: created, error: insertError } = await supabase
-    .from("conversations")
-    .insert({
-      workspace_id: workspaceId,
-      user_id: userData.user.id,
-      title: "Amanda",
-    })
-    .select()
-    .single();
-  if (insertError) throw insertError;
-  return created;
+  const conversation: LocalConversation = {
+    id: crypto.randomUUID(),
+    workspace_id: workspaceId,
+    title: "Amanda",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  await executeSql(
+    "INSERT INTO conversations (id, workspace_id, title, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)",
+    [
+      conversation.id,
+      conversation.workspace_id,
+      conversation.title,
+      conversation.created_at,
+      conversation.updated_at,
+    ],
+  );
+  return conversation;
 }
 
 /** Sends note content into a workspace conversation as a user message. */
-export async function sendNoteToWorkspace(
-  workspaceId: string,
-  noteContent: string,
-) {
+export async function sendNoteToWorkspace(workspaceId: string, noteContent: string) {
   const conversation = await ensureConversation(workspaceId);
-  const { error } = await supabase.from("messages").insert({
-    conversation_id: conversation.id,
-    role: "user",
-    content: noteContent,
-  });
-  if (error) throw error;
+  await executeSql(
+    "INSERT INTO messages (id, conversation_id, role, content) VALUES ($1, $2, $3, $4)",
+    [crypto.randomUUID(), conversation.id, "user", noteContent],
+  );
   return conversation;
 }

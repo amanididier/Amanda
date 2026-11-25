@@ -22,9 +22,7 @@ function NotesPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="font-serif text-3xl tracking-tight">Daily Notes</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        A fast, distraction-free capture space.
-      </p>
+      <p className="mt-2 text-sm text-muted-foreground">A fast, distraction-free capture space.</p>
       <div className="mt-8 flex flex-col divide-y divide-border">
         {notes?.length === 0 && (
           <p className="py-8 text-sm text-muted-foreground">
@@ -34,9 +32,7 @@ function NotesPage() {
         {notes?.map((note) => (
           <div key={note.id} className="py-3">
             <p className="text-sm font-medium">{note.title}</p>
-            <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-              {note.content}
-            </p>
+            <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{note.content}</p>
           </div>
         ))}
       </div>

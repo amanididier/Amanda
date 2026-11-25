@@ -41,9 +41,7 @@ function ProjectsPage() {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{ws.name}</p>
               {ws.description && (
-                <p className="truncate text-sm text-muted-foreground">
-                  {ws.description}
-                </p>
+                <p className="truncate text-sm text-muted-foreground">{ws.description}</p>
               )}
             </div>
           </Link>
