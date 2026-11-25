@@ -5,8 +5,12 @@ on:
   push:
     branches:
       - "v0/local-model-first-run"
+      - "ui/**"
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write

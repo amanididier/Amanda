@@ -1,8 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Archive,
-  Brain,
   FlaskConical,
   FolderKanban,
   Home,
@@ -67,8 +65,6 @@ const NAV_ITEMS = [
   { to: "/notes", label: "Daily Notes", icon: NotebookPen },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/research", label: "Research", icon: FlaskConical },
-  { to: "/memory", label: "Memory", icon: Brain },
-  { to: "/archive", label: "Archive", icon: Archive },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -76,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden overscroll-none bg-background">
       {/* Desktop sidebar */}
       <aside
         className={cn(
@@ -103,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="font-serif text-lg">Amanda</span>
         </div>
 
-        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</main>
       </div>
     </div>
   );

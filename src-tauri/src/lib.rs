@@ -164,6 +164,12 @@ fn migrations() -> Vec<Migration> {
             sql: "INSERT INTO workspaces (id, name, description, workspace_type, status, is_system) VALUES ('__amanda_general__', 'Amanda', 'General private assistant conversation.', 'project', 'active', 1);",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 27,
+            description: "add_note_image_attachments",
+            sql: "ALTER TABLE daily_notes ADD COLUMN images TEXT NOT NULL DEFAULT '[]';",
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -180,9 +186,12 @@ pub fn run() {
             backup::restore_local_backup,
             plans::save_approved_roadmap,
             plans::update_roadmap_step,
-            research::brave_credential_status,
-            research::search_brave,
+            research::get_web_search_status,
+            research::save_web_search_key,
+            research::set_web_search_provider,
+            research::search_web,
             model::get_model_status,
+            model::list_local_models,
             model::download_model,
             model::cancel_model_download,
             model::start_local_model,
