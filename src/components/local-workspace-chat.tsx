@@ -26,6 +26,7 @@ import {
 import { readModelStream } from "@/lib/local-model-stream";
 import { messagesQuery, workspaceConversationsQuery } from "@/lib/queries";
 import { ensureConversation } from "@/lib/workspaces";
+import { takePendingWorkspacePrompt } from "@/lib/pending-workspace-prompt";
 import type { LocalWorkspace } from "@/lib/workspaces";
 
 type WorkspaceTask = {
@@ -70,11 +71,13 @@ export function LocalWorkspaceChat({
   workspace: LocalWorkspace;
   tasks: WorkspaceTask[];
   landing?: boolean;
-  onBeginWorkspace?: () => void;
+  onBeginWorkspace?: (prompt: string) => void;
 }) {
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() =>
+    !landing && workspace.is_system === 0 ? (takePendingWorkspacePrompt() ?? "") : "",
+  );
   const [sending, setSending] = useState(false);
   const [streamedResponse, setStreamedResponse] = useState("");
   const [pendingAction, setPendingAction] = useState<LocalAction | null>(null);
@@ -447,7 +450,7 @@ export function LocalWorkspaceChat({
                 !workspacePromptRequested.current
               ) {
                 workspacePromptRequested.current = true;
-                onBeginWorkspace?.();
+                onBeginWorkspace?.(nextValue);
               }
               setInput(nextValue);
             }}

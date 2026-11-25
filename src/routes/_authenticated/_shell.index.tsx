@@ -8,6 +8,7 @@ import { LocalWorkspaceChat } from "@/components/local-workspace-chat";
 import { TemporaryChat } from "@/components/temporary-chat";
 import { Button } from "@/components/ui/button";
 import { generalAssistantWorkspaceQuery } from "@/lib/queries";
+import { setPendingWorkspacePrompt } from "@/lib/pending-workspace-prompt";
 
 export const Route = createFileRoute("/_authenticated/_shell/")({
   head: () => ({
@@ -51,7 +52,10 @@ function WorkspaceHomePage() {
             workspace={workspace}
             tasks={[]}
             landing
-            onBeginWorkspace={() => setCreateOpen(true)}
+            onBeginWorkspace={(prompt) => {
+              setPendingWorkspacePrompt(prompt);
+              setCreateOpen(true);
+            }}
           />
         ) : (
           <div className="py-16 text-center">
@@ -65,7 +69,10 @@ function WorkspaceHomePage() {
 
       <CreateWorkspaceDialog
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setPendingWorkspacePrompt(null);
+        }}
         onCreated={(id) => {
           setCreateOpen(false);
           void navigate({ to: "/w/$workspaceId", params: { workspaceId: id } });
