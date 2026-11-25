@@ -24,8 +24,12 @@ struct BraveResult { title: String, url: String, #[serde(default)] description: 
 #[derive(Deserialize)]
 struct FirecrawlResponse {
     #[serde(default)] success: bool,
-    #[serde(default)] data: Vec<FirecrawlResult>,
+    #[serde(default)] data: FirecrawlData,
     error: Option<String>,
+}
+#[derive(Deserialize, Default)]
+struct FirecrawlData {
+    #[serde(default)] web: Vec<FirecrawlResult>,
 }
 #[derive(Deserialize)]
 struct FirecrawlResult {
@@ -70,7 +74,7 @@ fn active_provider() -> String {
     keyring::Entry::new("AmandaLocalAssistant", "web-search-provider").ok()
         .and_then(|entry| entry.get_password().ok())
         .filter(|value| value == "firecrawl" || value == "brave")
-        .unwrap_or_else(|| if read_key("firecrawl").is_ok() { "firecrawl".to_string() } else { "brave".to_string() })
+        .unwrap_or_else(|| if read_key("firecrawl").is_ok() { "firecrawl".to_string() } else if read_key("brave").is_ok() { "brave".to_string() } else { "firecrawl".to_string() })
 }
 #[cfg(not(target_os = "windows"))]
 fn active_provider() -> String { "firecrawl".to_string() }
@@ -113,7 +117,7 @@ fn perform_search(provider: &str, key: &str, query: &str, limit: u8) -> Result<V
     if provider == "firecrawl" {
         let payload: FirecrawlResponse = response.json().map_err(|_| "Firecrawl returned an unreadable response".to_string())?;
         if !payload.success { return Err(payload.error.unwrap_or_else(|| "Firecrawl could not complete the search".to_string())); }
-        Ok(payload.data.into_iter().filter(|item| item.url.starts_with("https://")).take(limit as usize)
+        Ok(payload.data.web.into_iter().filter(|item| item.url.starts_with("https://")).take(limit as usize)
             .map(|item| ResearchResult {
                 title: if item.title.trim().is_empty() { item.url.clone() } else { item.title.chars().take(300).collect() },
                 url: item.url.chars().take(2_000).collect(),
@@ -146,7 +150,18 @@ pub async fn save_web_search_key(provider: String, api_key: String) -> Result<We
     }
     #[cfg(target_os = "windows")]
     {
-        perform_search(&provider, &key, "Amanda web search API connection test", 1)?;
+        let test_provider = provider.clone();
+        let test_key = key.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            perform_search(
+                &test_provider,
+                &test_key,
+                "Amanda web search API connection test",
+                1,
+            )
+        })
+        .await
+        .map_err(|error| format!("Could not test the search provider: {error}"))??;
         let entry = keyring::Entry::new("AmandaLocalAssistant", credential_username(&provider))
             .map_err(|_| "Windows Credential Manager could not be opened".to_string())?;
         entry.set_password(&key).map_err(|_| "Windows could not securely save this API key".to_string())?;

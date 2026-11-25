@@ -81,6 +81,7 @@ pub async fn list_local_models(app: AppHandle) -> Result<Vec<LocalModelInfo>, St
             let home = std::path::PathBuf::from(profile);
             roots.extend([home.join("Downloads"), home.join("Documents"), home.join("Models"),
                 home.join(".cache").join("huggingface").join("hub"),
+                home.join(".lmstudio").join("models"),
                 home.join(".ollama").join("models").join("blobs")]);
         }
         let mut results = Vec::new();

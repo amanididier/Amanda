@@ -1,4 +1,4 @@
-name: Windows installer
+name: Windows installer # Build the latest workspace chat changes
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
     branches:
       - "v0/local-model-first-run"
       - "ui/**"
+      - "fix/**"
     tags:
       - "v*"
   pull_request:
@@ -30,11 +31,28 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Format Rust source
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml
+
       - name: Check Rust formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Format changed frontend files
+        run: >-
+          bun x prettier --write
+          src/components/app-shell.tsx
+          src/components/local-research-library.tsx
+          src/components/local-workspace-chat.tsx
+          src/components/temporary-chat.tsx
+          src/routes/_authenticated/_shell.index.tsx
+          src/routes/_authenticated/_shell.w.$workspaceId.tsx
+          src/routes/_authenticated/_shell.notes.tsx
+          src/routes/_authenticated/_shell.settings.tsx
+          src/lib/pending-workspace-prompt.ts
+          src/styles.css
 
       - name: Check frontend lint
         run: bun run lint

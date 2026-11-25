@@ -156,7 +156,9 @@ function SettingsPage() {
   useEffect(() => {
     if (!desktop || localModels.length === 0 || selectedModelPath) return;
     let savedPath = "";
-    try { savedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch {}
+    try { savedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch {
+      savedPath = "";
+    }
     const preferred = localModels.find((item) => item.path === savedPath) ?? localModels.find((item) => item.isDefault) ?? localModels[0];
     if (preferred) setSelectedModelPath(preferred.path);
   }, [desktop, localModels, selectedModelPath]);
@@ -164,6 +166,7 @@ function SettingsPage() {
   async function handleLoadModel() {
     setBusy(true);
     try {
+      if (selectedModelPath) window.localStorage.setItem("amanda-selected-model-path", selectedModelPath);
       const modelConnection = await invoke<ModelConnection>("start_local_model", { modelPath: selectedModelPath || null });
       setConnection(modelConnection);
       queryClient.setQueryData(["model-connection"], modelConnection);
@@ -283,6 +286,10 @@ function SettingsPage() {
                 <Button onClick={() => void handleSaveWebKey()} disabled={savingWebKey || !webApiKey.trim()}>{savingWebKey ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}Save key & test connection</Button>
                 <Badge variant={webSearchStatus?.firecrawlConfigured ? "default" : "secondary"}>Firecrawl {webSearchStatus?.firecrawlConfigured ? "connected" : "not connected"}</Badge>
                 <Badge variant={webSearchStatus?.braveConfigured ? "default" : "secondary"}>Brave {webSearchStatus?.braveConfigured ? "connected" : "not connected"}</Badge>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <a href="https://www.firecrawl.dev/app/api-keys" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Firecrawl key</a>
+                <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Brave Search key</a>
               </div>
               <p className="text-xs text-muted-foreground">Your key is stored in Windows Credential Manager, not in Amanda&apos;s database or chat history. Switch providers whenever you like.</p>
             </>}
@@ -469,7 +476,9 @@ function SettingsPage() {
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm text-muted-foreground">{localModels.length} compatible model{localModels.length === 1 ? "" : "s"} detected</span><Button variant="outline" size="sm" onClick={() => void refreshLocalModels()}>Scan again</Button></div>
           {localModels.length > 0 ? <>
-            <Select value={selectedModelPath} onValueChange={(path) => { setSelectedModelPath(path); try { window.localStorage.setItem("amanda-selected-model-path", path); } catch {} }}>
+            <Select value={selectedModelPath} onValueChange={(path) => { setSelectedModelPath(path); try { window.localStorage.setItem("amanda-selected-model-path", path); } catch (error) {
+                  console.warn("Could not persist the selected model path", error);
+                } }}>
               <SelectTrigger><SelectValue placeholder="Choose an installed model" /></SelectTrigger>
               <SelectContent>{localModels.map((item) => <SelectItem key={item.path} value={item.path}>{item.name} · {(item.sizeBytes / 1_000_000_000).toFixed(2)} GB</SelectItem>)}</SelectContent>
             </Select>

@@ -155,15 +155,9 @@ export function LocalResearchLibrary() {
             </div>
           </div>
           {desktop && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void refreshCredential()}
-              disabled={checkingCredential}
-            >
-              <ShieldCheck data-icon="inline-start" />
-              Check key status
-            </Button>
+            <span className="text-xs text-muted-foreground">
+              Using {credential?.activeProvider === "brave" ? "Brave Search" : "Firecrawl"}
+            </span>
           )}
         </div>
 

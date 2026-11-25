@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -15,7 +16,7 @@ import {
   Sun,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import {
@@ -54,7 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { executeSql } from "@/lib/database";
+import { executeSql, isDesktopApp } from "@/lib/database";
 import { workspacesQuery } from "@/lib/queries";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -68,8 +69,36 @@ const NAV_ITEMS = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const startupAttempted = useRef(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isDesktopApp() || startupAttempted.current) return;
+    startupAttempted.current = true;
+    queryClient.setQueryData(["model-boot-state"], "starting");
+    void (async () => {
+      const cached = queryClient.getQueryData<{ baseUrl: string; apiKey: string }>(["model-connection"]);
+      if (cached) { queryClient.setQueryData(["model-boot-state"], "ready"); return; }
+      const status = await invoke<{ installed: boolean; modelPath: string }>("get_model_status");
+      let selectedPath = "";
+      try { selectedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch { selectedPath = ""; }
+      if (!selectedPath && status.installed) selectedPath = status.modelPath;
+      if (!selectedPath) {
+        const models = await invoke<Array<{ path: string; isDefault: boolean }>>("list_local_models");
+        selectedPath = models.find((model) => model.isDefault)?.path ?? models[0]?.path ?? "";
+      }
+      if (!selectedPath) { queryClient.setQueryData(["model-boot-state"], "missing"); return; }
+      const connection = await invoke<{ baseUrl: string; apiKey: string }>("start_local_model", { modelPath: selectedPath });
+      queryClient.setQueryData(["model-connection"], connection);
+      queryClient.setQueryData(["model-boot-state"], "ready");
+      void queryClient.invalidateQueries({ queryKey: ["model-status"] });
+    })().catch((error: unknown) => {
+      queryClient.setQueryData(["model-boot-state"], "error");
+      queryClient.setQueryData(["model-boot-error"], error instanceof Error ? error.message : String(error));
+    });
+  }, [queryClient]);
 
   return (
     <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden overscroll-none bg-background">
