@@ -174,6 +174,33 @@ function NotesPage() {
     setDirty(true);
   }
 
+  async function backToNotes() {
+    if (activeNote && dirty && desktop) {
+      const title = draftTitle.trim() || "Untitled note";
+      const projectId = draftProjectId === "none" ? null : draftProjectId;
+      const images = JSON.stringify(draftImages);
+      const updatedAt = new Date().toISOString();
+      try {
+        await executeSql(
+          "UPDATE daily_notes SET title = $1, content = $2, project_id = $3, updated_at = $4, images = $5 WHERE id = $6",
+          [title, draftContent, projectId, updatedAt, images, activeNote.id],
+        );
+        queryClient.setQueryData<Note[]>(["daily-notes", false], (current = []) =>
+          current.map((note) =>
+            note.id === activeNote.id
+              ? { ...note, title, content: draftContent, project_id: projectId, updated_at: updatedAt, images }
+              : note,
+          ),
+        );
+        setDirty(false);
+      } catch {
+        toast.error("Could not save this note");
+        return;
+      }
+    }
+    setSelectedId(null);
+  }
+
   async function archiveNote() {
     if (!activeNote) return;
     try {
@@ -233,9 +260,11 @@ function NotesPage() {
             className="h-10 w-full pl-9"
           />
         </div>
-        <Button onClick={() => void createNote()} disabled={!desktop} className="shrink-0">
-          <FilePlus2 data-icon="inline-start" /> Create note
-        </Button>
+        {!activeNote && (
+          <Button onClick={() => void createNote()} disabled={!desktop} className="shrink-0">
+            <FilePlus2 data-icon="inline-start" /> Create note
+          </Button>
+        )}
       </div>
 
       {activeNote ? (
@@ -247,7 +276,7 @@ function NotesPage() {
           onDrop={(event) => { event.preventDefault(); setDraggingImages(false); void addImages(event.dataTransfer.files); }}
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)}>
+            <Button variant="ghost" size="sm" onClick={() => void backToNotes()}>
               <ArrowLeft data-icon="inline-start" /> All notes
             </Button>
             <div className="flex items-center gap-2">
