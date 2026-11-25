@@ -70,7 +70,7 @@ fn active_provider() -> String {
     keyring::Entry::new("AmandaLocalAssistant", "web-search-provider").ok()
         .and_then(|entry| entry.get_password().ok())
         .filter(|value| value == "firecrawl" || value == "brave")
-        .unwrap_or_else(|| if read_key("firecrawl").is_ok() { "firecrawl".to_string() } else { "brave".to_string() })
+        .unwrap_or_else(|| if read_key("firecrawl").is_ok() { "firecrawl".to_string() } else if read_key("brave").is_ok() { "brave".to_string() } else { "firecrawl".to_string() })
 }
 #[cfg(not(target_os = "windows"))]
 fn active_provider() -> String { "firecrawl".to_string() }

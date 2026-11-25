@@ -284,6 +284,10 @@ function SettingsPage() {
                 <Badge variant={webSearchStatus?.firecrawlConfigured ? "default" : "secondary"}>Firecrawl {webSearchStatus?.firecrawlConfigured ? "connected" : "not connected"}</Badge>
                 <Badge variant={webSearchStatus?.braveConfigured ? "default" : "secondary"}>Brave {webSearchStatus?.braveConfigured ? "connected" : "not connected"}</Badge>
               </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                <a href="https://www.firecrawl.dev/app/api-keys" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Firecrawl key</a>
+                <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Brave Search key</a>
+              </div>
               <p className="text-xs text-muted-foreground">Your key is stored in Windows Credential Manager, not in Amanda&apos;s database or chat history. Switch providers whenever you like.</p>
             </>}
           </CardContent>
