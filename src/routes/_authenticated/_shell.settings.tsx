@@ -63,6 +63,7 @@ type ModelProgress = {
 };
 
 type ModelConnection = { baseUrl: string; apiKey: string };
+type LocalModel = { name: string; path: string; sizeBytes: number; isDefault: boolean };
 type WebSearchProvider = "firecrawl" | "brave";
 type WebSearchStatus = { activeProvider: WebSearchProvider; firecrawlConfigured: boolean; braveConfigured: boolean };
 
@@ -74,6 +75,8 @@ function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [connection, setConnection] = useState<ModelConnection | null>(null);
   const [testResponse, setTestResponse] = useState<string | null>(null);
+  const [selectedModelPath, setSelectedModelPath] = useState("");
+  const { data: localModels = [], refetch: refreshLocalModels } = useQuery({ queryKey: ["local-models"], queryFn: () => invoke<LocalModel[]>("list_local_models"), enabled: desktop });
   const [webProvider, setWebProvider] = useState<WebSearchProvider>("firecrawl");
   const [webApiKey, setWebApiKey] = useState("");
   const [savingWebKey, setSavingWebKey] = useState(false);
@@ -150,14 +153,22 @@ function SettingsPage() {
     }
   }
 
+  useEffect(() => {
+    if (!desktop || localModels.length === 0 || selectedModelPath) return;
+    let savedPath = "";
+    try { savedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch {}
+    const preferred = localModels.find((item) => item.path === savedPath) ?? localModels.find((item) => item.isDefault) ?? localModels[0];
+    if (preferred) setSelectedModelPath(preferred.path);
+  }, [desktop, localModels, selectedModelPath]);
+
   async function handleLoadModel() {
     setBusy(true);
     try {
-      const modelConnection = await invoke<ModelConnection>("start_local_model");
+      const modelConnection = await invoke<ModelConnection>("start_local_model", { modelPath: selectedModelPath || null });
       setConnection(modelConnection);
       queryClient.setQueryData(["model-connection"], modelConnection);
       await refreshModelStatus();
-      toast.success("Qwen3.5-2B is loaded locally");
+      toast.success(`${localModels.find((item) => item.path === selectedModelPath)?.name ?? "Local model"} is loaded`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {
@@ -258,7 +269,14 @@ function SettingsPage() {
           <CardContent className="flex flex-col gap-4">
             {!desktop ? <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Connect search providers in the installed Windows app.</p> : <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5"><Label htmlFor="web-provider">Provider</Label><Select value={webProvider} onValueChange={(value) => setWebProvider(value as WebSearchProvider)}><SelectTrigger id="web-provider"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="firecrawl">Firecrawl (recommended)</SelectItem><SelectItem value="brave">Brave Search</SelectItem></SelectContent></Select></div>
+                <div className="flex flex-col gap-1.5"><Label htmlFor="web-provider">Provider</Label><Select value={webProvider} onValueChange={async (value) => {
+                      setWebProvider(value as WebSearchProvider);
+                      const configured = value === "firecrawl" ? webSearchStatus?.firecrawlConfigured : webSearchStatus?.braveConfigured;
+                      if (configured) {
+                        try { await invoke("set_web_search_provider", { provider: value }); await refreshWebSearchStatus(); }
+                        catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
+                      }
+                    }}><SelectTrigger id="web-provider"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="firecrawl">Firecrawl (recommended)</SelectItem><SelectItem value="brave">Brave Search</SelectItem></SelectContent></Select></div>
                 <div className="flex flex-col gap-1.5"><Label htmlFor="web-api-key">API key</Label><Input id="web-api-key" type="password" autoComplete="off" value={webApiKey} onChange={(event) => setWebApiKey(event.target.value)} placeholder={webProvider === "firecrawl" ? "fc-…" : "Brave Search API key"} /></div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -445,6 +463,21 @@ function SettingsPage() {
           </CardContent>
         </Card>
       </section>
+
+      <Card className="mt-4">
+        <CardHeader><CardTitle className="text-base">Models already on this PC</CardTitle><CardDescription>Amanda scans its model folder, Downloads, Documents, Models, Hugging Face cache and Ollama blob storage for compatible GGUF files. Existing model files stay where they are.</CardDescription></CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm text-muted-foreground">{localModels.length} compatible model{localModels.length === 1 ? "" : "s"} detected</span><Button variant="outline" size="sm" onClick={() => void refreshLocalModels()}>Scan again</Button></div>
+          {localModels.length > 0 ? <>
+            <Select value={selectedModelPath} onValueChange={(path) => { setSelectedModelPath(path); try { window.localStorage.setItem("amanda-selected-model-path", path); } catch {} }}>
+              <SelectTrigger><SelectValue placeholder="Choose an installed model" /></SelectTrigger>
+              <SelectContent>{localModels.map((item) => <SelectItem key={item.path} value={item.path}>{item.name} · {(item.sizeBytes / 1_000_000_000).toFixed(2)} GB</SelectItem>)}</SelectContent>
+            </Select>
+            <p className="break-all text-xs text-muted-foreground">{localModels.find((item) => item.path === selectedModelPath)?.path}</p>
+            <Button onClick={() => void handleLoadModel()} disabled={!desktop || !modelStatus?.runtimeAvailable || busy || !selectedModelPath || modelStatus?.running}><Cpu data-icon="inline-start" />Load selected model</Button>
+          </> : <p className="text-sm text-muted-foreground">No compatible GGUF files found in the standard model folders. You can download Amanda&apos;s Qwen model above.</p>}
+        </CardContent>
+      </Card>
 
       <section className="mt-10">
         <h2 className="text-sm font-semibold">Backup and restore</h2>
