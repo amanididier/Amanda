@@ -73,7 +73,7 @@ function SettingsPage() {
   const desktop = isDesktopApp();
   const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
   const [busy, setBusy] = useState(false);
-  const [connection, setConnection] = useState<ModelConnection | null>(null);
+  const [connection, setConnection] = useState<ModelConnection | null>(() => queryClient.getQueryData<ModelConnection>(["model-connection"]) ?? null);
   const [testResponse, setTestResponse] = useState<string | null>(null);
   const [selectedModelPath, setSelectedModelPath] = useState("");
   const { data: localModels = [], refetch: refreshLocalModels } = useQuery({ queryKey: ["local-models"], queryFn: () => invoke<LocalModel[]>("list_local_models"), enabled: desktop });
@@ -179,6 +179,24 @@ function SettingsPage() {
     }
   }
 
+  async function handleRepairModel() {
+    setBusy(true);
+    setTestResponse(null);
+    try {
+      const repaired = await invoke<ModelConnection>("repair_local_model", {
+        modelPath: selectedModelPath || null,
+      });
+      setConnection(repaired);
+      queryClient.setQueryData(["model-connection"], repaired);
+      await refreshModelStatus();
+      toast.success("Local model authentication repaired and verified");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleUnloadModel() {
     setBusy(true);
     try {
@@ -213,7 +231,12 @@ function SettingsPage() {
           stream: false,
         }),
       });
-      if (!response.ok) throw new Error(`The local model returned HTTP ${response.status}`);
+      if (!response.ok) {
+        const details = await response.text().catch(() => "");
+        throw new Error(
+          `The local model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`,
+        );
+      }
       const result = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
@@ -415,6 +438,14 @@ function SettingsPage() {
               )}
               {modelStatus?.running && (
                 <>
+                  <Button onClick={() => void handleRepairModel()} disabled={busy}>
+                    {busy ? (
+                      <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                    ) : (
+                      <ShieldCheck data-icon="inline-start" />
+                    )}
+                    Repair & verify
+                  </Button>
                   <Button onClick={() => void handleTestModel()} disabled={busy || !connection}>
                     {busy ? (
                       <LoaderCircle data-icon="inline-start" className="animate-spin" />
