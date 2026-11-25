@@ -484,7 +484,7 @@ export function LocalWorkspaceChat({
                 ? workspace.is_system === 1
                   ? "Ask Amanda anything…"
                   : "Ask about this project…"
-                : modelBootState === "starting" ? "Starting your local model…" : "Load a local model in Settings to chat"
+                : modelBootState === "starting" ? "Starting your local model…" : modelBootState === "error" ? "Model startup failed — open Settings for details" : "Load a local model in Settings to chat"
             }
             className={landing && messages.length === 0 ? "min-h-28 resize-y rounded-xl px-4 py-4" : "min-h-20 resize-y"}
             maxLength={MAX_PROMPT_CHARS}
@@ -492,9 +492,11 @@ export function LocalWorkspaceChat({
           />
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              {workspace.is_system === 1
-                ? "Recent conversation and relevant global notes, memories, and saved research."
-                : "Recent conversation and relevant local notes, memories, research, and project tasks."}
+              {!modelReady && modelBootState === "error"
+                ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
+                : workspace.is_system === 1
+                  ? "Recent conversation and relevant global notes, memories, and saved research."
+                  : "Recent conversation and relevant local notes, memories, research, and project tasks."}
             </p>
             {sending ? (
               <Button variant="outline" onClick={stopGeneration} aria-label="Stop response">
