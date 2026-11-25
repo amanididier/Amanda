@@ -60,6 +60,7 @@ import { workspacesQuery } from "@/lib/queries";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { createWorkspace, type WorkspaceType } from "@/lib/workspaces";
+import { UpdateNotice } from "@/components/update-notice";
 
 const NAV_ITEMS = [
   { to: "/", label: "Home", icon: Home },
@@ -119,6 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   return (
+    <>
     <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden overscroll-none bg-background">
       {/* Desktop sidebar */}
       <aside
@@ -149,6 +151,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</main>
       </div>
     </div>
+    <UpdateNotice />
+    </>
   );
 }
 

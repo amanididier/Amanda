@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Amanda",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.amanda.desktop",
   "build": {
     "frontendDist": "../dist/client",
@@ -27,12 +27,25 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:amanda.db"]
+      "preload": [
+        "sqlite:amanda.db"
+      ]
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMyNkJERUUxREIwRDI1QTkKUldTcEpRM2I0ZDVyTWc3MGJVbHo4VUNGTmpxdFU2cjMvQXhlREdaNVdGYmJGQkNZVHc5ZjFvbysK",
+      "endpoints": [
+        "https://github.com/amanididier/Amanda/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "resources": {
       "resources/llama/*": "llama/"
     },
@@ -45,6 +58,7 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
-    }
+    },
+    "createUpdaterArtifacts": true
   }
 }
