@@ -189,6 +189,7 @@ pub fn run() {
             research::brave_credential_status,
             research::search_brave,
             model::get_model_status,
+            model::list_local_models,
             model::download_model,
             model::cancel_model_download,
             model::start_local_model,

@@ -1,10 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Archive,
+  Brain,
   Cpu,
   Download,
+  Globe,
   ExternalLink,
   LoaderCircle,
   ShieldCheck,
@@ -18,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LocalDataTransfer } from "@/components/local-data-transfer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -59,6 +63,8 @@ type ModelProgress = {
 };
 
 type ModelConnection = { baseUrl: string; apiKey: string };
+type WebSearchProvider = "firecrawl" | "brave";
+type WebSearchStatus = { activeProvider: WebSearchProvider; firecrawlConfigured: boolean; braveConfigured: boolean };
 
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -68,6 +74,10 @@ function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [connection, setConnection] = useState<ModelConnection | null>(null);
   const [testResponse, setTestResponse] = useState<string | null>(null);
+  const [webProvider, setWebProvider] = useState<WebSearchProvider>("firecrawl");
+  const [webApiKey, setWebApiKey] = useState("");
+  const [savingWebKey, setSavingWebKey] = useState(false);
+  const { data: webSearchStatus, refetch: refreshWebSearchStatus } = useQuery({ queryKey: ["web-search-status"], queryFn: () => invoke<WebSearchStatus>("get_web_search_status"), enabled: desktop });
   const {
     data: modelStatus,
     refetch: refreshModelStatus,
@@ -77,6 +87,10 @@ function SettingsPage() {
     queryFn: () => invoke<ModelStatus>("get_model_status"),
     enabled: desktop,
   });
+
+  useEffect(() => {
+    if (webSearchStatus?.activeProvider) setWebProvider(webSearchStatus.activeProvider);
+  }, [webSearchStatus?.activeProvider]);
 
   useEffect(() => {
     if (!desktop) return;
@@ -93,6 +107,19 @@ function SettingsPage() {
       unlisten?.();
     };
   }, [desktop]);
+
+  async function handleSaveWebKey() {
+    const key = webApiKey.trim();
+    if (!key) { toast.error("Enter your API key first"); return; }
+    setSavingWebKey(true);
+    try {
+      await invoke("save_web_search_key", { provider: webProvider, apiKey: key });
+      setWebApiKey("");
+      await refreshWebSearchStatus();
+      toast.success(`${webProvider === "firecrawl" ? "Firecrawl" : "Brave Search"} connected and tested successfully`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
+    finally { setSavingWebKey(false); }
+  }
 
   async function handleDownload() {
     setBusy(true);
@@ -204,7 +231,7 @@ function SettingsPage() {
     Math.min(100, Math.floor((progressBytes / (modelStatus?.totalBytes || 1)) * 100));
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="font-serif text-3xl tracking-tight">Settings</h1>
 
       <section className="mt-10">
@@ -221,6 +248,35 @@ function SettingsPage() {
               <SelectItem value="system">System</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      </section>
+
+      <section className="mt-10" aria-labelledby="web-search-settings-heading">
+        <div className="flex items-center gap-2"><Globe className="size-4 text-muted-foreground" /><h2 id="web-search-settings-heading" className="text-sm font-semibold">Web search</h2></div>
+        <Card className="mt-3">
+          <CardHeader><CardTitle className="text-base">Connect a search provider</CardTitle><CardDescription>Add your API key once. Amanda tests the connection before saving it securely in Windows Credential Manager.</CardDescription></CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {!desktop ? <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Connect search providers in the installed Windows app.</p> : <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5"><Label htmlFor="web-provider">Provider</Label><Select value={webProvider} onValueChange={(value) => setWebProvider(value as WebSearchProvider)}><SelectTrigger id="web-provider"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="firecrawl">Firecrawl (recommended)</SelectItem><SelectItem value="brave">Brave Search</SelectItem></SelectContent></Select></div>
+                <div className="flex flex-col gap-1.5"><Label htmlFor="web-api-key">API key</Label><Input id="web-api-key" type="password" autoComplete="off" value={webApiKey} onChange={(event) => setWebApiKey(event.target.value)} placeholder={webProvider === "firecrawl" ? "fc-…" : "Brave Search API key"} /></div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={() => void handleSaveWebKey()} disabled={savingWebKey || !webApiKey.trim()}>{savingWebKey ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}Save key & test connection</Button>
+                <Badge variant={webSearchStatus?.firecrawlConfigured ? "default" : "secondary"}>Firecrawl {webSearchStatus?.firecrawlConfigured ? "connected" : "not connected"}</Badge>
+                <Badge variant={webSearchStatus?.braveConfigured ? "default" : "secondary"}>Brave {webSearchStatus?.braveConfigured ? "connected" : "not connected"}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">Your key is stored in Windows Credential Manager, not in Amanda&apos;s database or chat history. Switch providers whenever you like.</p>
+            </>}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold">Your data</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Link to="/memory" className="rounded-lg border border-border p-4 transition-colors hover:bg-accent"><div className="flex items-center gap-2 text-sm font-medium"><Brain className="size-4" />Memory</div><p className="mt-2 text-sm text-muted-foreground">Review and manage what Amanda remembers.</p></Link>
+          <Link to="/archive" className="rounded-lg border border-border p-4 transition-colors hover:bg-accent"><div className="flex items-center gap-2 text-sm font-medium"><Archive className="size-4" />Archive</div><p className="mt-2 text-sm text-muted-foreground">Restore or permanently delete archived items.</p></Link>
         </div>
       </section>
 

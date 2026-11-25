@@ -40,6 +40,57 @@ pub struct ModelRuntime {
     api_key: Arc<Mutex<Option<String>>>,
 }
 
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelInfo { name: String, path: String, size_bytes: u64, is_default: bool }
+
+fn is_gguf_model(path: &std::path::Path) -> bool {
+    let Ok(metadata) = fs::metadata(path) else { return false; };
+    if metadata.len() < 100 * 1024 * 1024 { return false; }
+    let Ok(mut file) = File::open(path) else { return false; };
+    let mut magic = [0_u8; 4];
+    file.read_exact(&mut magic).is_ok() && &magic == b"GGUF"
+}
+fn scan_model_directory(directory: &std::path::Path, depth: usize, results: &mut Vec<LocalModelInfo>, seen: &mut std::collections::HashSet<std::path::PathBuf>) {
+    if depth > 5 || results.len() >= 300 { return; }
+    let Ok(entries) = fs::read_dir(directory) else { return; };
+    for entry in entries.flatten() {
+        if results.len() >= 300 { break; }
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else { continue; };
+        if kind.is_dir() { scan_model_directory(&path, depth + 1, results, seen); }
+        else if kind.is_file() && is_gguf_model(&path) {
+            let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if !seen.insert(canonical) { continue; }
+            let Ok(metadata) = fs::metadata(&path) else { continue; };
+            let is_default = path.file_name().is_some_and(|name| name == MODEL_FILENAME);
+            let name = if is_default { "Qwen3.5-2B · Q4_K_M".to_string() } else {
+                path.file_stem().and_then(|value| value.to_str()).unwrap_or("Local GGUF model").to_string()
+            };
+            results.push(LocalModelInfo { name, path: path.to_string_lossy().into_owned(), size_bytes: metadata.len(), is_default });
+        }
+    }
+}
+#[tauri::command]
+pub async fn list_local_models(app: AppHandle) -> Result<Vec<LocalModelInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut roots = Vec::new();
+        if let Ok(directory) = app.path().app_local_data_dir() { roots.push(directory.join("models")); }
+        if let Some(profile) = std::env::var_os("USERPROFILE") {
+            let home = std::path::PathBuf::from(profile);
+            roots.extend([home.join("Downloads"), home.join("Documents"), home.join("Models"),
+                home.join(".cache").join("huggingface").join("hub"),
+                home.join(".ollama").join("models").join("blobs")]);
+        }
+        let mut results = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for root in roots { scan_model_directory(&root, 0, &mut results, &mut seen); }
+        results.sort_by(|left, right| right.is_default.cmp(&left.is_default).then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase())));
+        Ok(results)
+    }).await.map_err(|error| format!("Could not scan installed models: {error}"))?
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelStatus {
@@ -348,10 +399,11 @@ fn download_model_blocking(app: &AppHandle, runtime: &ModelRuntime) -> Result<St
 pub async fn start_local_model(
     app: AppHandle,
     runtime: State<'_, ModelRuntime>,
+    model_path: Option<String>,
 ) -> Result<ModelConnection, String> {
     let app = app.clone();
     let runtime = runtime.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || start_local_model_blocking(&app, &runtime))
+    tauri::async_runtime::spawn_blocking(move || start_local_model_blocking(&app, &runtime, model_path))
         .await
         .map_err(|error| format!("The local model could not start: {error}"))?
 }
@@ -359,6 +411,7 @@ pub async fn start_local_model(
 fn start_local_model_blocking(
     app: &AppHandle,
     runtime: &ModelRuntime,
+    selected_path: Option<String>,
 ) -> Result<ModelConnection, String> {
     if server_is_running(runtime)? {
         let api_key = runtime
@@ -373,11 +426,15 @@ fn start_local_model_blocking(
         });
     }
 
-    let (model_path, marker_path) = model_paths(app)?;
-    if !model_is_verified(&model_path, &marker_path) {
-        return Err("Download and verify Qwen3.5-2B before loading it".to_string());
+    let (default_model_path, marker_path) = model_paths(app)?;
+    let model_path = selected_path.map(std::path::PathBuf::from).unwrap_or(default_model_path.clone())
+        .canonicalize().map_err(|error| format!("Could not open the selected model file: {error}"))?;
+    if !is_gguf_model(&model_path) { return Err("Choose a valid GGUF model file (at least 100 MB)".to_string()); }
+    let is_default_model = default_model_path.canonicalize().ok().as_ref() == Some(&model_path);
+    if is_default_model {
+        if !model_is_verified(&model_path, &marker_path) { return Err("Download and verify Qwen3.5-2B before loading it".to_string()); }
+        verify_model_contents(&model_path)?;
     }
-    verify_model_contents(&model_path)?;
     if !runtime_is_available(app) {
         return Err(
             "The bundled llama.cpp runtime is missing. Reinstall Amanda to repair it".to_string(),

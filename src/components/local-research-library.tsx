@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { ExternalLink, Search, ShieldCheck } from "lucide-react";
+import { ExternalLink, Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -20,7 +20,7 @@ import { workspacesQuery } from "@/lib/queries";
 
 const NO_PROJECT = "__none__";
 
-type BraveSearchResult = { title: string; url: string; description: string };
+type WebSearchResult = { title: string; url: string; description: string; provider: string };
 type SavedResearch = {
   id: string;
   project_id: string | null;
@@ -37,18 +37,16 @@ export function LocalResearchLibrary() {
   const desktop = isDesktopApp();
   const [query, setQuery] = useState("");
   const [searchedQuery, setSearchedQuery] = useState("");
-  const [results, setResults] = useState<BraveSearchResult[]>([]);
+  const [results, setResults] = useState<WebSearchResult[]>([]);
   const [savedResultUrls, setSavedResultUrls] = useState<Set<string>>(() => new Set());
   const [projectId, setProjectId] = useState(NO_PROJECT);
   const [searching, setSearching] = useState(false);
   const [savingUrl, setSavingUrl] = useState<string | null>(null);
   const {
     data: credential,
-    isLoading: checkingCredential,
-    refetch: refreshCredential,
   } = useQuery({
-    queryKey: ["research-credential-status"],
-    queryFn: () => invoke<{ configured: boolean }>("brave_credential_status"),
+    queryKey: ["web-search-status"],
+    queryFn: () => invoke<{ activeProvider: string; firecrawlConfigured: boolean; braveConfigured: boolean }>("get_web_search_status"),
     enabled: desktop,
     staleTime: 60_000,
   });
@@ -68,8 +66,8 @@ export function LocalResearchLibrary() {
       toast.error("Research queries must be between 3 and 200 characters");
       return;
     }
-    if (!desktop || !credential?.configured) {
-      toast.error("Configure Brave Search in Windows Credential Manager before searching");
+    if (!desktop || (!credential?.firecrawlConfigured && !credential?.braveConfigured)) {
+      toast.error("Connect a web search provider in Settings before searching");
       return;
     }
 
@@ -78,9 +76,9 @@ export function LocalResearchLibrary() {
     setSavedResultUrls(new Set());
     setSearchedQuery(term);
     try {
-      const found = await invoke<BraveSearchResult[]>("search_brave", { query: term });
+      const found = await invoke<WebSearchResult[]>("search_web", { query: term });
       setResults(found);
-      if (found.length === 0) toast.info("Brave Search returned no web results for this query");
+      if (found.length === 0) toast.info("The search provider returned no web results for this query");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Online research could not be completed",
@@ -90,7 +88,7 @@ export function LocalResearchLibrary() {
     }
   }
 
-  async function saveSource(result: BraveSearchResult) {
+  async function saveSource(result: WebSearchResult) {
     if (!desktop || savedResultUrls.has(result.url) || savingUrl) return;
     setSavingUrl(result.url);
     try {
@@ -108,7 +106,7 @@ export function LocalResearchLibrary() {
           null,
           retrievedAt,
           result.description.trim().slice(0, 1200),
-          JSON.stringify({ provider: "Brave Search", retrievedAt, searchQuery: searchedQuery }),
+          JSON.stringify({ provider: result.provider, retrievedAt, searchQuery: searchedQuery }),
         ],
       );
       setSavedResultUrls((current) => new Set(current).add(result.url));
@@ -152,8 +150,7 @@ export function LocalResearchLibrary() {
                 Search the web
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Online search is optional and runs only when you press Search. Your query is sent to
-                Brave Search; results are not saved until you choose a source.
+                Online search runs only when you press Search. Your selected provider receives the query; results are not saved until you choose a source.
               </p>
             </div>
           </div>
@@ -175,22 +172,10 @@ export function LocalResearchLibrary() {
             Online research is available in the installed Windows desktop app. You can still browse
             and revisit sources saved in Amanda.
           </p>
-        ) : !credential?.configured ? (
+        ) : (!credential?.firecrawlConfigured && !credential?.braveConfigured) ? (
           <div className="mt-4 rounded-md bg-muted px-3 py-3 text-sm">
-            <p className="font-medium">Add a Brave Search key to Windows Credential Manager</p>
-            <ol className="mt-2 flex list-decimal flex-col gap-1 pl-5 text-muted-foreground">
-              <li>Open Windows Control Panel → Credential Manager → Windows Credentials.</li>
-              <li>Choose Add a generic credential.</li>
-              <li>
-                Set the network address to AmandaLocalAssistant and the user name to brave-search.
-              </li>
-              <li>Paste your Brave Search API key as the password and save the credential.</li>
-              <li>Return here and select Check key status.</li>
-            </ol>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Amanda reads the key in native Rust code only; the key is not entered into or stored
-              by the web interface. Brave account limits and terms apply.
-            </p>
+            <p className="font-medium">Connect a web search provider</p>
+            <p className="mt-1 text-muted-foreground">Open Settings → Web search to add your Firecrawl or Brave API key. Amanda tests and securely saves the key for you.</p>
           </div>
         ) : (
           <form onSubmit={(event) => void handleSearch(event)} className="mt-5 flex flex-col gap-4">
