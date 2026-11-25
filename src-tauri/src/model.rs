@@ -467,7 +467,9 @@ fn start_local_model_blocking(
             "128",
         ])
         .env("LLAMA_API_KEY", &api_key)
-        // llama.cpp b9222 does not recognize --cors-origins.
+        // Qwen3.5 can spend a short completion budget on hidden reasoning and return no
+        // user-visible text. Amanda is a conversational assistant, so use non-thinking mode.
+        .args(["--reasoning", "off"])
         // This server is bound to loopback only and protected by a per-launch API key.
         .arg("--jinja")
         .stdin(Stdio::null())
@@ -598,7 +600,7 @@ fn verify_local_model_completion(connection: &ModelConnection) -> Result<(), Str
         .bearer_auth(&connection.api_key)
         .json(&serde_json::json!({
             "messages": [{ "role": "user", "content": "Reply with the word OK." }],
-            "max_tokens": 16,
+            "max_tokens": 128,
             "temperature": 0.0,
             "stream": false
         }))
@@ -617,14 +619,31 @@ fn verify_local_model_completion(connection: &ModelConnection) -> Result<(), Str
     let payload: serde_json::Value = response
         .json()
         .map_err(|error| format!("The local model returned an unreadable test response: {error}"))?;
-    let answer = payload
-        .pointer("/choices/0/message/content")
+    let message = payload.pointer("/choices/0/message");
+    let answer = message
+        .and_then(|value| value.get("content"))
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
         .trim();
 
     if answer.is_empty() {
-        return Err("Authentication passed, but the model returned an empty test response".to_string());
+        let reasoning = message
+            .and_then(|value| value.get("reasoning_content"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        let finish_reason = payload
+            .pointer("/choices/0/finish_reason")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        let usage = payload.get("usage").map(serde_json::Value::to_string).unwrap_or_else(|| "unavailable".to_string());
+        let reasoning_detail = if reasoning.is_empty() {
+            "none returned".to_string()
+        } else {
+            format!("{} characters returned", reasoning.chars().count())
+        };
+        return Err(format!(
+            "Authentication passed, but the model produced no visible answer (finish_reason: {finish_reason}; reasoning: {reasoning_detail}; usage: {usage}). Check the llama.cpp log for the generation details."
+        ));
     }
 
     Ok(())
