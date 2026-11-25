@@ -9,50 +9,277 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedShellRouteImport } from './routes/_authenticated/_shell'
+import { Route as AuthenticatedShellIndexRouteImport } from './routes/_authenticated/_shell.index'
+import { Route as AuthenticatedShellArchiveRouteImport } from './routes/_authenticated/_shell.archive'
+import { Route as AuthenticatedShellNotesRouteImport } from './routes/_authenticated/_shell.notes'
+import { Route as AuthenticatedShellProjectsRouteImport } from './routes/_authenticated/_shell.projects'
+import { Route as AuthenticatedShellResearchRouteImport } from './routes/_authenticated/_shell.research'
+import { Route as AuthenticatedShellSettingsRouteImport } from './routes/_authenticated/_shell.settings'
+import { Route as AuthenticatedShellWWorkspaceIdRouteImport } from './routes/_authenticated/_shell.w.$workspaceId'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedShellRoute = AuthenticatedShellRouteImport.update({
+  id: '/_shell',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedShellIndexRoute = AuthenticatedShellIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedShellRoute,
+} as any)
+const AuthenticatedShellArchiveRoute =
+  AuthenticatedShellArchiveRouteImport.update({
+    id: '/archive',
+    path: '/archive',
+    getParentRoute: () => AuthenticatedShellRoute,
+  } as any)
+const AuthenticatedShellNotesRoute = AuthenticatedShellNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => AuthenticatedShellRoute,
+} as any)
+const AuthenticatedShellProjectsRoute =
+  AuthenticatedShellProjectsRouteImport.update({
+    id: '/projects',
+    path: '/projects',
+    getParentRoute: () => AuthenticatedShellRoute,
+  } as any)
+const AuthenticatedShellResearchRoute =
+  AuthenticatedShellResearchRouteImport.update({
+    id: '/research',
+    path: '/research',
+    getParentRoute: () => AuthenticatedShellRoute,
+  } as any)
+const AuthenticatedShellSettingsRoute =
+  AuthenticatedShellSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedShellRoute,
+  } as any)
+const AuthenticatedShellWWorkspaceIdRoute =
+  AuthenticatedShellWWorkspaceIdRouteImport.update({
+    id: '/w/$workspaceId',
+    path: '/w/$workspaceId',
+    getParentRoute: () => AuthenticatedShellRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AuthenticatedShellIndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/archive': typeof AuthenticatedShellArchiveRoute
+  '/notes': typeof AuthenticatedShellNotesRoute
+  '/projects': typeof AuthenticatedShellProjectsRoute
+  '/research': typeof AuthenticatedShellResearchRoute
+  '/settings': typeof AuthenticatedShellSettingsRoute
+  '/w/$workspaceId': typeof AuthenticatedShellWWorkspaceIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/': typeof AuthenticatedShellIndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/archive': typeof AuthenticatedShellArchiveRoute
+  '/notes': typeof AuthenticatedShellNotesRoute
+  '/projects': typeof AuthenticatedShellProjectsRoute
+  '/research': typeof AuthenticatedShellResearchRoute
+  '/settings': typeof AuthenticatedShellSettingsRoute
+  '/w/$workspaceId': typeof AuthenticatedShellWWorkspaceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/_shell': typeof AuthenticatedShellRouteWithChildren
+  '/_authenticated/_shell/archive': typeof AuthenticatedShellArchiveRoute
+  '/_authenticated/_shell/notes': typeof AuthenticatedShellNotesRoute
+  '/_authenticated/_shell/projects': typeof AuthenticatedShellProjectsRoute
+  '/_authenticated/_shell/research': typeof AuthenticatedShellResearchRoute
+  '/_authenticated/_shell/settings': typeof AuthenticatedShellSettingsRoute
+  '/_authenticated/_shell/': typeof AuthenticatedShellIndexRoute
+  '/_authenticated/_shell/w/$workspaceId': typeof AuthenticatedShellWWorkspaceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/archive'
+    | '/notes'
+    | '/projects'
+    | '/research'
+    | '/settings'
+    | '/w/$workspaceId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/archive'
+    | '/notes'
+    | '/projects'
+    | '/research'
+    | '/settings'
+    | '/w/$workspaceId'
+  id:
+    | '__root__'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/_authenticated/_shell'
+    | '/_authenticated/_shell/archive'
+    | '/_authenticated/_shell/notes'
+    | '/_authenticated/_shell/projects'
+    | '/_authenticated/_shell/research'
+    | '/_authenticated/_shell/settings'
+    | '/_authenticated/_shell/'
+    | '/_authenticated/_shell/w/$workspaceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/_shell': {
+      id: '/_authenticated/_shell'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedShellRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/_shell/': {
+      id: '/_authenticated/_shell/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedShellIndexRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
+    '/_authenticated/_shell/archive': {
+      id: '/_authenticated/_shell/archive'
+      path: '/archive'
+      fullPath: '/archive'
+      preLoaderRoute: typeof AuthenticatedShellArchiveRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
+    '/_authenticated/_shell/notes': {
+      id: '/_authenticated/_shell/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof AuthenticatedShellNotesRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
+    '/_authenticated/_shell/projects': {
+      id: '/_authenticated/_shell/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AuthenticatedShellProjectsRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
+    '/_authenticated/_shell/research': {
+      id: '/_authenticated/_shell/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof AuthenticatedShellResearchRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
+    '/_authenticated/_shell/settings': {
+      id: '/_authenticated/_shell/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedShellSettingsRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
+    }
+    '/_authenticated/_shell/w/$workspaceId': {
+      id: '/_authenticated/_shell/w/$workspaceId'
+      path: '/w/$workspaceId'
+      fullPath: '/w/$workspaceId'
+      preLoaderRoute: typeof AuthenticatedShellWWorkspaceIdRouteImport
+      parentRoute: typeof AuthenticatedShellRoute
     }
   }
 }
 
+interface AuthenticatedShellRouteChildren {
+  AuthenticatedShellArchiveRoute: typeof AuthenticatedShellArchiveRoute
+  AuthenticatedShellNotesRoute: typeof AuthenticatedShellNotesRoute
+  AuthenticatedShellProjectsRoute: typeof AuthenticatedShellProjectsRoute
+  AuthenticatedShellResearchRoute: typeof AuthenticatedShellResearchRoute
+  AuthenticatedShellSettingsRoute: typeof AuthenticatedShellSettingsRoute
+  AuthenticatedShellIndexRoute: typeof AuthenticatedShellIndexRoute
+  AuthenticatedShellWWorkspaceIdRoute: typeof AuthenticatedShellWWorkspaceIdRoute
+}
+
+const AuthenticatedShellRouteChildren: AuthenticatedShellRouteChildren = {
+  AuthenticatedShellArchiveRoute: AuthenticatedShellArchiveRoute,
+  AuthenticatedShellNotesRoute: AuthenticatedShellNotesRoute,
+  AuthenticatedShellProjectsRoute: AuthenticatedShellProjectsRoute,
+  AuthenticatedShellResearchRoute: AuthenticatedShellResearchRoute,
+  AuthenticatedShellSettingsRoute: AuthenticatedShellSettingsRoute,
+  AuthenticatedShellIndexRoute: AuthenticatedShellIndexRoute,
+  AuthenticatedShellWWorkspaceIdRoute: AuthenticatedShellWWorkspaceIdRoute,
+}
+
+const AuthenticatedShellRouteWithChildren =
+  AuthenticatedShellRoute._addFileChildren(AuthenticatedShellRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedShellRoute: typeof AuthenticatedShellRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedShellRoute: AuthenticatedShellRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
