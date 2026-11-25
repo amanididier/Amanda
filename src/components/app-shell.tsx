@@ -91,6 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       if (!selectedPath) { queryClient.setQueryData(["model-boot-state"], "missing"); return; }
       const connection = await invoke<{ baseUrl: string; apiKey: string }>("start_local_model", { modelPath: selectedPath });
+      // Do not enable the composer until the model returns an actual completion.
       const testResponse = await fetch(`${connection.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: {
