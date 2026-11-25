@@ -243,7 +243,12 @@ export function LocalWorkspaceChat({
             : {}),
         }),
       });
-      if (!response.ok) throw new Error(`The local model returned HTTP ${response.status}`);
+      if (!response.ok) {
+        const details = await response.text().catch(() => "");
+        throw new Error(
+          `The local model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`,
+        );
+      }
       if (!response.body) throw new Error("The local model did not open a response stream");
       const result = await readModelStream(response.body, controller.signal, (nextText) => {
         assistantText = nextText;
