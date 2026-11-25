@@ -447,6 +447,17 @@ fn start_local_model_blocking(
     fs::write(&api_key_path, &api_key)
         .map_err(|error| format!("Could not prepare private local model credentials: {error}"))?;
     let _api_key_file = RemoveFileOnDrop(api_key_path.clone());
+    // Keep llama.cpp diagnostics so startup failures show their real cause.
+    let log_directory = app
+        .path()
+        .app_log_dir()
+        .map_err(|error| format!("Could not locate Amanda's log folder: {error}"))?;
+    fs::create_dir_all(&log_directory)
+        .map_err(|error| format!("Could not create Amanda's log folder: {error}"))?;
+    let log_path = log_directory.join("llama-startup.log");
+    let stderr_log = File::create(&log_path)
+        .map_err(|error| format!("Could not create the llama.cpp diagnostic log: {error}"))?;
+
     let mut command = Command::new(server_path);
     command
         .arg("--model")
@@ -474,7 +485,7 @@ fn start_local_model_blocking(
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::from(stderr_log));
 
     #[cfg(target_os = "windows")]
     {
@@ -497,8 +508,21 @@ fn start_local_model_blocking(
             .try_wait()
             .map_err(|error| format!("Could not check the local model process: {error}"))?
         {
+            let diagnostic = fs::read_to_string(&log_path)
+                .unwrap_or_else(|error| format!("Could not read llama.cpp log: {error}"));
+            let diagnostic = diagnostic.trim();
+            let diagnostic = if diagnostic.len() > 7000 {
+                &diagnostic[diagnostic.len() - 7000..]
+            } else {
+                diagnostic
+            };
+            let detail = if diagnostic.is_empty() {
+                format!("No diagnostic output was written. Full log path: {}", log_path.display())
+            } else {
+                format!("llama.cpp output:\\n{diagnostic}\\n\\nFull log: {}", log_path.display())
+            };
             return Err(format!(
-                "llama.cpp exited before the model was ready (exit status {status})"
+                "llama.cpp exited before the model was ready (exit status {status}).\\n{detail}"
             ));
         }
         if client
