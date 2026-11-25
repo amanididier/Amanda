@@ -568,6 +568,48 @@ fn start_local_model_blocking(
     }
 }
 
+fn verify_local_model_completion(connection: &ModelConnection) -> Result<(), String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(90))
+        .build()
+        .map_err(|error| format!("Could not prepare the local model verification request: {error}"))?;
+    let response = client
+        .post(format!("{}/v1/chat/completions", connection.base_url))
+        .bearer_auth(&connection.api_key)
+        .json(&serde_json::json!({
+            "messages": [{ "role": "user", "content": "Reply with the word OK." }],
+            "max_tokens": 16,
+            "temperature": 0.0,
+            "stream": false
+        }))
+        .send()
+        .map_err(|error| format!("Authentication passed, but the local model test request failed: {error}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        let detail = body.chars().take(500).collect::<String>();
+        return Err(format!(
+            "Authentication passed, but model inference returned HTTP {status}: {detail}"
+        ));
+    }
+
+    let payload: serde_json::Value = response
+        .json()
+        .map_err(|error| format!("The local model returned an unreadable test response: {error}"))?;
+    let answer = payload
+        .pointer("/choices/0/message/content")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .trim();
+
+    if answer.is_empty() {
+        return Err("Authentication passed, but the model returned an empty test response".to_string());
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn repair_local_model(
     app: AppHandle,
@@ -578,7 +620,12 @@ pub async fn repair_local_model(
     let runtime = runtime.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         stop_server(&runtime)?;
-        start_local_model_blocking(&app, &runtime, model_path)
+        let connection = start_local_model_blocking(&app, &runtime, model_path)?;
+        if let Err(error) = verify_local_model_completion(&connection) {
+            let _ = stop_server(&runtime);
+            return Err(error);
+        }
+        Ok(connection)
     })
     .await
     .map_err(|error| format!("The local model repair stopped unexpectedly: {error}"))?
