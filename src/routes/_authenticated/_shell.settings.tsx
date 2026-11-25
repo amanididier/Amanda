@@ -166,11 +166,10 @@ function SettingsPage() {
   async function handleLoadModel() {
     setBusy(true);
     try {
+      if (selectedModelPath) window.localStorage.setItem("amanda-selected-model-path", selectedModelPath);
       const modelConnection = await invoke<ModelConnection>("start_local_model", { modelPath: selectedModelPath || null });
       setConnection(modelConnection);
       queryClient.setQueryData(["model-connection"], modelConnection);
-      queryClient.setQueryData(["model-boot-state"], "ready");
-      queryClient.removeQueries({ queryKey: ["model-boot-error"] });
       await refreshModelStatus();
       toast.success(`${localModels.find((item) => item.path === selectedModelPath)?.name ?? "Local model"} is loaded`);
     } catch (error) {
@@ -186,7 +185,6 @@ function SettingsPage() {
       await invoke("stop_local_model");
       setConnection(null);
       queryClient.setQueryData(["model-connection"], null);
-      queryClient.setQueryData(["model-boot-state"], "stopped");
       setTestResponse(null);
       await refreshModelStatus();
       toast.success("The local model was unloaded");

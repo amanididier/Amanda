@@ -340,7 +340,7 @@ export function LocalWorkspaceChat({
 
   return (
     <section
-      className={workspaceLayout ? "flex h-full min-h-0 flex-col" : landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 flex min-h-0 flex-col rounded-lg border border-border"}
+      className={workspaceLayout ? landing && messages.length === 0 && !streamedResponse ? "flex h-full min-h-0 flex-col justify-center" : "flex h-full min-h-0 flex-col" : landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 flex min-h-0 flex-col rounded-lg border border-border"}
       aria-labelledby="workspace-chat-heading"
     >
       {landing && messages.length === 0 && !streamedResponse && (
