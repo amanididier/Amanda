@@ -44,17 +44,12 @@ function WorkspacePage() {
       <p className="text-xs tracking-wider text-muted-foreground uppercase">
         {workspace.workspace_type === "research" ? "Research hub" : "Project"}
       </p>
-      <h1 className="mt-1 font-serif text-3xl tracking-tight">
-        {workspace.name}
-      </h1>
+      <h1 className="mt-1 font-serif text-3xl tracking-tight">{workspace.name}</h1>
       {workspace.description && (
-        <p className="mt-2 text-sm text-muted-foreground">
-          {workspace.description}
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{workspace.description}</p>
       )}
       <div className="mt-10 rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        The conversation with Amanda and the live execution plan are being
-        built next.
+        The conversation with Amanda and the live execution plan are being built next.
       </div>
     </div>
   );

@@ -27,8 +27,7 @@ function ResearchPage() {
       <div className="mt-8 flex flex-col divide-y divide-border">
         {hubs?.length === 0 && (
           <p className="py-8 text-sm text-muted-foreground">
-            No research hubs yet. Create one from the sidebar to start an
-            inquiry.
+            No research hubs yet. Create one from the sidebar to start an inquiry.
           </p>
         )}
         {hubs?.map((ws) => (
@@ -42,9 +41,7 @@ function ResearchPage() {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{ws.name}</p>
               {ws.description && (
-                <p className="truncate text-sm text-muted-foreground">
-                  {ws.description}
-                </p>
+                <p className="truncate text-sm text-muted-foreground">{ws.description}</p>
               )}
             </div>
           </Link>

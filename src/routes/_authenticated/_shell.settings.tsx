@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Cpu, ExternalLink, ShieldCheck } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -48,13 +52,59 @@ function SettingsPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-sm font-semibold">AI Provider</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold">Local AI model</h2>
+          <Badge variant="secondary">Not installed</Badge>
+        </div>
+        <Card className="mt-3">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                <Cpu aria-hidden="true" className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <CardTitle className="text-base">Qwen3.5-2B</CardTitle>
+                <CardDescription className="mt-1">
+                  Intended local model · download is separate from the app
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
+              <ShieldCheck
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+              />
+              <p className="text-muted-foreground">
+                Amanda is still running as a web app. The desktop runtime needed to download,
+                install, and run a model on this device is not set up yet, so no model is being
+                downloaded or used.
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              The official Qwen release is in Hugging Face Transformers format; it does not provide
+              an official GGUF file. We will only offer an in-app installer once a compatible
+              runtime and verified model package are ready.
+            </p>
+            <div>
+              <Button variant="outline" size="sm" asChild>
+                <a href="https://huggingface.co/Qwen/Qwen3.5-2B" target="_blank" rel="noreferrer">
+                  View official model files
+                  <ExternalLink data-icon="inline-end" />
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold">Current AI service</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Amanda is powered by the built-in Lovable AI — no API key required.
-          Bringing your own Google Gemini or OpenAI key is planned; secure
-          per-user key storage is not yet available in this environment, so
-          those options are intentionally disabled rather than pretending to
-          work.
+          Amanda desktop stores your project data in a local SQLite database and does not require an
+          account. This browser preview is for the interface only; local model download and Qwen
+          inference are not ready yet.
         </p>
       </section>
     </div>
