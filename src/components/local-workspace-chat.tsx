@@ -224,7 +224,7 @@ export function LocalWorkspaceChat({
         "SELECT local_attachments.id, local_attachments.name, local_attachments.mime_type AS mimeType, local_attachments.size_bytes AS size, local_attachments.kind, local_attachments.data_url AS dataUrl, local_attachments.extracted_text AS extractedText FROM local_attachments INNER JOIN messages ON messages.id = local_attachments.message_id WHERE messages.conversation_id = $1 AND local_attachments.extracted_text != '' ORDER BY messages.created_at DESC LIMIT 8",
         [activeConversation.id],
       );
-      const queryTerms = content.toLocaleLowerCase().match(/[\\p{L}\\p{N}]{3,}/gu) ?? [];
+      const queryTerms = content.toLocaleLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
       const relatedSavedAttachments = savedConversationAttachments
         .filter((item) => !currentAttachments.some((current) => current.id === item.id))
         .filter((item) => queryTerms.some((term) => `${item.name} ${item.extractedText}`.toLocaleLowerCase().includes(term)))
@@ -234,8 +234,8 @@ export function LocalWorkspaceChat({
       const imageContext = currentAttachments
         .filter((item) => item.kind === "image")
         .map((item) => `Image attached: ${item.name}. Inspect the image if visual input is supported by this local model.`)
-        .join("\\n");
-      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext, imageContext].filter(Boolean).join("\\n\\n");
+        .join("\n");
+      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext, imageContext].filter(Boolean).join("\n\n");
       const modelHistory = history.map((message, index) =>
         index === history.length - 1
           ? {
