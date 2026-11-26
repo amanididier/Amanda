@@ -211,7 +211,7 @@ function WorkspacePage() {
 
         {!desktop && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Project tasks are stored locally. Open the installed Amanda desktop app to add or update
+            Workspace tasks are stored locally. Open the installed Amanda desktop app to add or update
             them.
           </p>
         )}
