@@ -22,7 +22,16 @@ The repository has an empty v0.1.3 GitHub Release. The installed CI build is ver
 1. Finish and merge the intended code changes.
 2. Increase the version in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml (for the first updater rollout this branch already sets 0.1.4; future releases should increment from there).
 3. Commit and push the version change to the release branch.
-4. Create and push the matching tag, for example v0.1.4.
+4. From PowerShell in the repository folder, create and push the matching tag (for the first rollout):
+
+   ```powershell
+   git switch main
+   git pull --ff-only origin main
+   git tag -a v0.1.4 -m "Amanda v0.1.4"
+   git push origin v0.1.4
+   ```
+
+   Do not create the GitHub Release manually first. Pushing the tag starts the release workflow, which creates or updates the release.
 5. The Windows installer GitHub Actions workflow builds the NSIS installer and signed updater artifact, then publishes the GitHub Release and latest.json.
 6. Confirm the release contains the regular .exe, its .sig signature, and latest.json before announcing the update.
 
