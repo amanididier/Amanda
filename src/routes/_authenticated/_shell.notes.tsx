@@ -299,6 +299,7 @@ function NotesPage() {
     range.setStart(node, selection.anchorOffset - match[0].length);
     range.deleteContents();
     pendingRange.current = selection.getRangeAt(0).cloneRange();
+    setDraftContent(NOTE_HTML_PREFIX + editor.innerHTML);
     setReferenceKind(match[1].toLocaleLowerCase() === "image" ? "image" : "doc");
     window.setTimeout(() => attachmentInput.current?.click(), 0);
   }
@@ -542,14 +543,17 @@ function NotesPage() {
             {noteAttachments.length > 0 && (
               <div className="mt-5 flex flex-col gap-2" aria-label="Note attachments">
                 {noteAttachments.map((attachment) => (
-                  <button key={attachment.id} type="button" onClick={() => setPreviewAttachment(attachment)} className="flex w-full items-center gap-3 rounded-lg border border-border bg-muted/30 p-3 text-left transition-colors hover:bg-muted/60">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><FileText className="size-4 text-muted-foreground" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{attachment.name}</span>
-                      <span className="block text-xs text-muted-foreground">{attachment.kind === "pasted-text" ? `${attachment.extractedText.split(/\\r?\\n/).length} lines · ` : ""}{formatFileSize(attachment.size)} · Stored on this device</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">Preview</span>
-                  </button>
+                  <div key={attachment.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
+                    <button type="button" onClick={() => setPreviewAttachment(attachment)} className="flex min-w-0 flex-1 items-center gap-3 p-1 text-left">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><FileText className="size-4 text-muted-foreground" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{attachment.name}</span>
+                        <span className="block text-xs text-muted-foreground">{attachment.kind === "pasted-text" ? `${attachment.extractedText.split(/\\r?\\n/).length} lines · ` : ""}{formatFileSize(attachment.size)} · Stored on this device</span>
+                      </span>
+                      <span className="text-xs text-muted-foreground">Preview</span>
+                    </button>
+                    <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${attachment.name}`} onClick={() => void removeNoteAttachment(attachment)}><X className="size-4" /></Button>
+                  </div>
                 ))}
               </div>
             )}
