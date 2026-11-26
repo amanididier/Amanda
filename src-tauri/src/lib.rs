@@ -208,7 +208,6 @@ pub fn run() {
             plans::update_roadmap_step,
             research::get_web_search_status,
             research::save_web_search_key,
-            research::set_web_search_provider,
             research::search_web,
             model::get_model_status,
             model::list_local_models,
