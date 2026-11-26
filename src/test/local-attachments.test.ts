@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   attachmentPromptContext,
@@ -8,6 +8,7 @@ import {
 
 describe("local attachment helpers", () => {
   it("turns long pasted text into a compact local attachment with a line count", () => {
+    vi.stubGlobal("crypto", { randomUUID: () => "test-attachment-id" });
     const attachment = createPastedTextAttachment("First line\nSecond line\nThird line");
     expect(attachment.kind).toBe("pasted-text");
     expect(attachment.name).toBe("Pasted text · 3 lines");
