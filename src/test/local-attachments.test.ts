@@ -21,7 +21,7 @@ describe("local attachment helpers", () => {
   it("extracts selectable text from a text-based PDF", async () => {
     vi.stubGlobal("crypto", { randomUUID: () => "pdf-attachment-id" });
     const pdf = new File(
-      ["%PDF-1.4\\n1 0 obj\\n<< /Length 24 >>\\nstream\\nBT (Hello from PDF) Tj ET\\nendstream\\nendobj\\n%%EOF"],
+      ["%PDF-1.4\n1 0 obj\n<< /Length 24 >>\nstream\nBT (Hello from PDF) Tj ET\nendstream\nendobj\n%%EOF"],
       "sample.pdf",
       { type: "application/pdf" },
     );
