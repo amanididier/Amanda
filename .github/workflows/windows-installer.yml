@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - "v0/local-model-first-run"
+      - "feature/complete-in-app-updater"
     tags:
       - "v*"
   pull_request:
