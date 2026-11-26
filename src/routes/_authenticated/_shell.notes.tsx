@@ -245,11 +245,36 @@ function NotesPage() {
       [attachment.id, activeNote.id, attachment.name, attachment.mimeType, attachment.kind, attachment.size, attachment.dataUrl, attachment.extractedText, createdAt],
     );
     setNoteAttachments((current) => [...current, { ...attachment, noteId: activeNote.id }]);
-    const card = document.createElement("span");
+    const storedAttachment: StoredAttachment = { ...attachment, noteId: activeNote.id };
+    const card = document.createElement("div");
     card.contentEditable = "false";
     card.dataset.amandaAttachmentId = attachment.id;
-    card.className = "mx-1 inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-2 align-middle text-sm";
-    card.textContent = `▤ ${attachment.name}`;
+    card.className = "my-3 flex max-w-xl cursor-pointer items-center gap-3 rounded-xl border border-border bg-muted/40 p-3 text-sm transition-colors hover:bg-muted/70";
+    const icon = document.createElement("span");
+    icon.className = "flex size-9 shrink-0 items-center justify-center rounded-lg bg-background";
+    icon.textContent = "▤";
+    const details = document.createElement("span");
+    details.className = "min-w-0 flex-1";
+    const title = document.createElement("span");
+    title.className = "block truncate font-medium";
+    title.textContent = attachment.name;
+    const summary = document.createElement("span");
+    summary.className = "mt-0.5 block truncate text-xs text-muted-foreground";
+    summary.textContent = attachment.kind === "pasted-text"
+      ? `Pasted text · ${attachment.extractedText.split(/\\r?\\n/).length} lines · Click to preview`
+      : `${formatFileSize(attachment.size)} · Click to preview contents`;
+    details.append(title, summary);
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.setAttribute("aria-label", `Remove ${attachment.name}`);
+    removeButton.className = "rounded-md px-2 py-1 text-muted-foreground hover:bg-background";
+    removeButton.textContent = "×";
+    removeButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void removeNoteAttachment(storedAttachment);
+    });
+    card.append(icon, details, removeButton);
+    card.addEventListener("click", () => setPreviewAttachment(storedAttachment));
     insertAtSavedCaret(card);
   }
 
@@ -540,23 +565,6 @@ function NotesPage() {
               onClick={handleEditorClick}
               className="min-h-[42vh] whitespace-pre-wrap break-words rounded-md px-0 py-1 text-base leading-7 outline-none empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] [&_img]:max-h-[32rem]"
             />
-            {noteAttachments.length > 0 && (
-              <div className="mt-5 flex flex-col gap-2" aria-label="Note attachments">
-                {noteAttachments.map((attachment) => (
-                  <div key={attachment.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
-                    <button type="button" onClick={() => setPreviewAttachment(attachment)} className="flex min-w-0 flex-1 items-center gap-3 p-1 text-left">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><FileText className="size-4 text-muted-foreground" /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{attachment.name}</span>
-                        <span className="block text-xs text-muted-foreground">{attachment.kind === "pasted-text" ? `${attachment.extractedText.split(/\\r?\\n/).length} lines · ` : ""}{formatFileSize(attachment.size)} · Stored on this device</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground">Preview</span>
-                    </button>
-                    <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${attachment.name}`} onClick={() => void removeNoteAttachment(attachment)}><X className="size-4" /></Button>
-                  </div>
-                ))}
-              </div>
-            )}
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <Button type="button" variant="outline" size="sm" onClick={() => {
                 const selection = window.getSelection();
@@ -566,7 +574,6 @@ function NotesPage() {
               }} disabled={!desktop}>
                 <Paperclip data-icon="inline-start" /> Add reference
               </Button>
-              <span className="text-xs text-muted-foreground">Tip: type @image or @doc to insert at the cursor. Paste long text to create a preview card.</span>
             </div>
             {previewAttachment && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewAttachment(null); }}>
