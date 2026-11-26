@@ -188,7 +188,7 @@ export function LocalWorkspaceChat({
         id: crypto.randomUUID(),
         conversation_id: activeConversation.id,
         role: "user",
-        content: content || attachmentSummary || "Please review the attached files.",
+        content: content || "Please review the attached files.",
         created_at: now,
       };
       await executeSql(
