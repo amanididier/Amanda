@@ -387,7 +387,7 @@ function SettingsPage() {
         <Card className="mt-3 max-w-2xl">
           <CardHeader>
             <CardTitle className="text-base">Keep Amanda up to date</CardTitle>
-            <CardDescription>Amanda checks for new signed releases when it starts, when you return after a while, and every five minutes. Updates install inside the app without asking you to download the installer manually.</CardDescription>
+            <CardDescription>Check manually whenever you want. Amanda only looks for a signed release when you press the button; it never downloads or installs an update without your approval.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {!desktop ? (
@@ -398,7 +398,7 @@ function SettingsPage() {
                   {updateCheckStatus.status === "idle" && <p className="text-muted-foreground">Select Check for updates to look for the latest signed release.</p>}
                   {updateCheckStatus.status === "checking" && <p className="text-muted-foreground">Checking GitHub for a newer Amanda release…</p>}
                   {updateCheckStatus.status === "available" && <p className="font-medium">Amanda {updateCheckStatus.version} is available. Use the Update button at the top-right to install it.</p>}
-                  {updateCheckStatus.status === "current" && <p className="text-muted-foreground">Amanda is up to date. We will let you know when a newer release is published.</p>}
+                  {updateCheckStatus.status === "current" && <p className="text-muted-foreground">Amanda is up to date. You can check again whenever you want.</p>}
                   {updateCheckStatus.status === "error" && <p className="text-destructive">Could not check for updates. Check your internet connection and try again.{updateCheckStatus.message ? ` Details: ${updateCheckStatus.message}` : ""}</p>}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
