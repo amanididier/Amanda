@@ -120,6 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
 
     window.addEventListener("pointerdown", scheduleIdleStop);
+    window.addEventListener("pointermove", scheduleIdleStop, { passive: true });
     window.addEventListener("keydown", scheduleIdleStop);
     window.addEventListener("wheel", scheduleIdleStop, { passive: true });
     window.addEventListener("touchstart", scheduleIdleStop, { passive: true });
@@ -129,6 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => {
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       window.removeEventListener("pointerdown", scheduleIdleStop);
+      window.removeEventListener("pointermove", scheduleIdleStop);
       window.removeEventListener("keydown", scheduleIdleStop);
       window.removeEventListener("wheel", scheduleIdleStop);
       window.removeEventListener("touchstart", scheduleIdleStop);
