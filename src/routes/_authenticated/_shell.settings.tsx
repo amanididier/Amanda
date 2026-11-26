@@ -70,7 +70,7 @@ type ModelConnection = { baseUrl: string; apiKey: string };
 type LocalModel = { name: string; path: string; sizeBytes: number; isDefault: boolean };
 type WebSearchProvider = "firecrawl" | "brave";
 type WebSearchStatus = { activeProvider: WebSearchProvider; firecrawlConfigured: boolean; braveConfigured: boolean };
-type UpdateCheckStatus = { status: "checking" | "available" | "current" | "error"; version?: string; message?: string };
+type UpdateCheckStatus = { status: "idle" | "checking" | "available" | "current" | "error"; version?: string; message?: string };
 
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -82,7 +82,7 @@ function SettingsPage() {
   const desktop = isDesktopApp();
   const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
   const [busy, setBusy] = useState(false);
-  const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>({ status: "current" });
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>({ status: "idle" });
   const [connection, setConnection] = useState<ModelConnection | null>(() => queryClient.getQueryData<ModelConnection>(["model-connection"]) ?? null);
   const [testResponse, setTestResponse] = useState<string | null>(null);
   const [selectedModelPath, setSelectedModelPath] = useState("");
@@ -395,6 +395,7 @@ function SettingsPage() {
             ) : (
               <>
                 <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm" aria-live="polite">
+                  {updateCheckStatus.status === "idle" && <p className="text-muted-foreground">Select Check for updates to look for the latest signed release.</p>}
                   {updateCheckStatus.status === "checking" && <p className="text-muted-foreground">Checking GitHub for a newer Amanda release…</p>}
                   {updateCheckStatus.status === "available" && <p className="font-medium">Amanda {updateCheckStatus.version} is available. Use the Update button at the top-right to install it.</p>}
                   {updateCheckStatus.status === "current" && <p className="text-muted-foreground">Amanda is up to date. We will let you know when a newer release is published.</p>}
