@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { Archive, ArrowLeft, FilePlus2, FileText, ImagePlus, Paperclip, Search, Trash2, X } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Archive, ArrowLeft, FilePlus2, FileText, ImagePlus, MessageCircle, Paperclip, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type MouseEvent } from "react";
 import { toast } from "sonner";
 
@@ -27,6 +27,8 @@ import {
 import { createLocalAttachment, createPastedTextAttachment, formatFileSize, type LocalAttachment } from "@/lib/local-attachments";
 import { executeSql, isDesktopApp, selectRows } from "@/lib/database";
 import { notesQuery, workspacesQuery } from "@/lib/queries";
+import { createWorkspace } from "@/lib/workspaces";
+import { setPendingWorkspaceMessage } from "@/lib/pending-workspace-prompt";
 
 export const Route = createFileRoute("/_authenticated/_shell/notes")({
   head: () => ({
@@ -66,9 +68,11 @@ function notePlainText(content: string) {
 
 function NotesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: notes = [], isLoading } = useQuery(notesQuery());
   const { data: workspaces = [] } = useQuery(workspacesQuery("active"));
   const projects = workspaces.filter((workspace) => workspace.workspace_type === "project");
+  const researchWorkspaces = workspaces.filter((workspace) => workspace.workspace_type === "research");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -179,6 +183,71 @@ function NotesPage() {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [activeNote, desktop, draftContent, draftImages, draftProjectId, draftTitle, dirty, queryClient]);
+
+  async function askAmandaAboutNote() {
+    if (!activeNote || !desktop) {
+      toast.error("Open Amanda desktop to send this note to a workspace");
+      return;
+    }
+    const noteTitle = draftTitle.trim() || "Untitled note";
+    const noteText = notePlainText(editorRef.current?.innerHTML ? NOTE_HTML_PREFIX + editorRef.current.innerHTML : draftContent);
+    const documentAttachments = noteAttachments.map((attachment) => ({
+      id: crypto.randomUUID(),
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      kind: attachment.kind,
+      dataUrl: attachment.dataUrl,
+      extractedText: attachment.extractedText,
+    })) as LocalAttachment[];
+    const imageAttachments = draftImages.map((dataUrl, index) => ({
+      id: crypto.randomUUID(),
+      name: `Note image ${index + 1}`,
+      mimeType: dataUrl.slice(5, dataUrl.indexOf(";")) || "image/png",
+      size: Math.floor(dataUrl.length * 0.75),
+      kind: "image" as const,
+      dataUrl,
+      extractedText: "",
+    }));
+    const attachmentsForPrompt = [...documentAttachments, ...imageAttachments];
+    if (!noteText && attachmentsForPrompt.length === 0) {
+      toast.error("Add some note content or an image first");
+      return;
+    }
+
+    try {
+      await saveQueue.current;
+      const now = new Date().toISOString();
+      const projectId = draftProjectId === "none" ? null : draftProjectId;
+      const images = JSON.stringify(draftImages);
+      await executeSql(
+        "UPDATE daily_notes SET title = $1, content = $2, project_id = $3, updated_at = $4, images = $5 WHERE id = $6",
+        [noteTitle, draftContent, projectId, now, images, activeNote.id],
+      );
+      setDirty(false);
+
+      let targetWorkspace = projectId ? workspaces.find((workspace) => workspace.id === projectId) : undefined;
+      if (!targetWorkspace) targetWorkspace = researchWorkspaces[0];
+      if (!targetWorkspace) {
+        targetWorkspace = await createWorkspace("research", "Notes research");
+        await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      }
+
+      const attachmentNames = attachmentsForPrompt.map((attachment) => attachment.name);
+      const prompt = [
+        `Please review my Daily Note and help me with it. Treat this as my full request, and use the attached images and documents as part of the context.`,
+        `Note: ${noteTitle}`,
+        noteText,
+        attachmentNames.length ? `Attached references: ${attachmentNames.join(", ")}. Please inspect the images and read the documents.` : "",
+      ].filter(Boolean).join("\n\n");
+      setPendingWorkspaceMessage(prompt, attachmentsForPrompt);
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      await navigate({ to: "/w/$workspaceId", params: { workspaceId: targetWorkspace.id } });
+      toast.success(`Opening ${targetWorkspace.workspace_type === "research" ? "Research" : "Project"} chat`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not send this note to Amanda");
+    }
+  }
 
   async function createNote() {
     if (!desktop) {
@@ -544,6 +613,9 @@ function NotesPage() {
                   onChange={(event) => { if (event.target.files) void addImages(event.target.files); event.currentTarget.value = ""; }}
                 />
               </label>
+              <Button type="button" variant="outline" size="sm" onClick={() => void askAmandaAboutNote()} disabled={!desktop}>
+                <MessageCircle data-icon="inline-start" /> Ask Amanda
+              </Button>
             </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
             <Button variant="ghost" size="sm" onClick={() => void backToNotes()}>
