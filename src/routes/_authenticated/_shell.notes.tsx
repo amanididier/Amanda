@@ -71,7 +71,7 @@ function NotesPage() {
 
   function markDirty() {
     editRevision.current += 1;
-    markDirty();
+    setDirty(true);
   }
 
   const filteredNotes = useMemo(() => {
