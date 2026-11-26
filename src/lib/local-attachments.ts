@@ -21,6 +21,17 @@ function readAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function readAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+  if (typeof file.arrayBuffer === "function") return file.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      reader.result instanceof ArrayBuffer ? resolve(reader.result) : reject(new Error("Could not read this file."));
+    reader.onerror = () => reject(new Error("Could not read this file."));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function cleanExtractedText(value: string) {
   return value.split(String.fromCharCode(0)).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_EXTRACTED_CHARS);
 }
@@ -143,9 +154,9 @@ export async function createLocalAttachment(file: File): Promise<LocalAttachment
   const extension = file.name.split(".").pop()?.toLocaleLowerCase() ?? "";
   let extractedText = "";
   if (file.type === "application/pdf" || extension === "pdf") {
-    extractedText = await extractPdfText(await file.arrayBuffer());
+    extractedText = await extractPdfText(await readAsArrayBuffer(file));
   } else if (extension === "docx" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    extractedText = await extractDocxText(await file.arrayBuffer());
+    extractedText = await extractDocxText(await readAsArrayBuffer(file));
   } else if (["txt", "md", "csv", "json", "xml", "html", "yaml", "yml"].includes(extension) || file.type.startsWith("text/") || file.type === "application/json") {
     extractedText = cleanExtractedText(await file.text());
     if (extension === "html" || extension === "xml") extractedText = cleanExtractedText(extractedText.replace(/<[^>]*>/g, " "));
