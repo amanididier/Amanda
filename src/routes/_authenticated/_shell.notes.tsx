@@ -54,6 +54,16 @@ type Note = {
   images: string;
 };
 
+function notePlainText(content: string) {
+  return content
+    .replace(NOTE_HTML_PREFIX, "")
+    .replace(/<img[^>]*>/g, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function NotesPage() {
   const queryClient = useQueryClient();
   const { data: notes = [], isLoading } = useQuery(notesQuery());
@@ -90,7 +100,7 @@ function NotesPage() {
     return notes.filter(
       (note) =>
         note.title.toLocaleLowerCase().includes(normalized) ||
-        note.content.toLocaleLowerCase().includes(normalized),
+        notePlainText(note.content).toLocaleLowerCase().includes(normalized),
     );
   }, [notes, search]);
   const activeNote = notes.find((note) => note.id === selectedId) ?? null;
@@ -117,10 +127,13 @@ function NotesPage() {
     void selectRows<{ id: string; name: string; mime_type: string; size_bytes: number; kind: StoredAttachment["kind"]; data_url: string | null; extracted_text: string }>(
       "SELECT id, name, mime_type, size_bytes, kind, data_url, extracted_text FROM local_attachments WHERE note_id = $1 ORDER BY created_at ASC",
       [activeNote.id],
-    ).then((rows) => setNoteAttachments(rows.map((row) => ({
+    ).then((rows) => {
+      if (loadedNoteId.current !== activeNote.id) return;
+      setNoteAttachments(rows.map((row) => ({
       id: row.id, noteId: activeNote.id, name: row.name, mimeType: row.mime_type, size: row.size_bytes,
-      kind: row.kind, dataUrl: row.data_url, extractedText: row.extracted_text,
-    })))).catch(() => toast.error("Could not load this note's attachments"));
+        kind: row.kind, dataUrl: row.data_url, extractedText: row.extracted_text,
+      })));
+    }).catch(() => toast.error("Could not load this note's attachments"));
     editRevision.current += 1;
     setDirty(false);
   }, [activeNote]);
@@ -637,7 +650,7 @@ function NotesPage() {
                   className="h-44 overflow-hidden rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
                 >
                   <span className="block truncate text-base font-medium">{note.title || "Untitled note"}</span>
-                  <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{note.content.replace(/<!--amanda-rich-note-->/, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || "No text yet"}</span>
+                  <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{notePlainText(note.content) || "No text yet"}</span>
                   <span className="mt-4 block text-xs text-muted-foreground">{new Date(note.updated_at).toLocaleDateString()}</span>
                 </button>
               ))}
