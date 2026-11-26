@@ -468,10 +468,12 @@ function NotesPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10 sm:px-8">
-      <div>
-        <h1 className="font-serif text-3xl tracking-tight">Notes</h1>
-        <p className="mt-2 text-sm text-muted-foreground">A calm space for thoughts, drafts, and ideas.</p>
-      </div>
+      {!activeNote && (
+        <div>
+          <h1 className="font-serif text-3xl tracking-tight">Notes</h1>
+          <p className="mt-2 text-sm text-muted-foreground">A calm space for thoughts, drafts, and ideas.</p>
+        </div>
+      )}
 
       {!desktop && (
         <p className="mt-5 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
@@ -506,22 +508,7 @@ function NotesPage() {
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingImages(false); }}
           onDrop={(event) => { event.preventDefault(); setDraggingImages(false); void addImages(event.dataTransfer.files); }}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-            <Button variant="ghost" size="sm" onClick={() => void backToNotes()}>
-              <ArrowLeft data-icon="inline-start" /> All notes
-            </Button>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground" aria-live="polite">{dirty ? "Saving…" : "Saved on this device"}</span>
-              <Button variant="outline" size="sm" onClick={() => void archiveNote()} disabled={!desktop}>
-                <Archive data-icon="inline-start" /> Archive
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Delete note" onClick={() => setDeleteOpen(true)} disabled={!desktop}>
-                <Trash2 aria-hidden="true" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="mx-auto mt-8 flex max-w-3xl flex-col gap-5">
+          <div className="mx-auto mt-0 flex max-w-3xl flex-col gap-5">
             <Input
               id="note-title"
               value={draftTitle}
@@ -552,6 +539,20 @@ function NotesPage() {
                 />
               </label>
             </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+            <Button variant="ghost" size="sm" onClick={() => void backToNotes()}>
+              <ArrowLeft data-icon="inline-start" /> All notes
+            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground" aria-live="polite">{dirty ? "Saving…" : "Saved on this device"}</span>
+              <Button variant="outline" size="sm" onClick={() => void archiveNote()} disabled={!desktop}>
+                <Archive data-icon="inline-start" /> Archive
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="Delete note" onClick={() => setDeleteOpen(true)} disabled={!desktop}>
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
             {draftImages.length > 0 && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {draftImages.map((image, index) => (
