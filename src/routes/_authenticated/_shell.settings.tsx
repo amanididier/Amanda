@@ -622,7 +622,6 @@ function SettingsPage() {
             ))}
           </nav>
           <article className="min-w-0 rounded-xl border border-border bg-card p-5 sm:p-6">
-            {(() => { const currentGuideImages = guideImages[guideTopic] ?? []; return null; })()}
             {(() => {
               const articles = [
                 { id: "getting-started", title: "Getting started", intro: "Amanda keeps your work on this device and gives each project or research topic its own focused workspace.", steps: ["Open Settings and choose Local AI model.", "Download or select a compatible GGUF model, then choose Load model.", "Wait until the model is shown as Loaded.", "Return to Home and start a conversation with Amanda.", "When you are ready to organise the work, create a workspace and choose Project or Research."] },
