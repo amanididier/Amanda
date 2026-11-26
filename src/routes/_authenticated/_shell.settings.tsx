@@ -646,12 +646,15 @@ function SettingsPage() {
             })()}
             <div className="mt-8 border-t border-border pt-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h3 className="text-sm font-semibold">Reference images</h3><p className="mt-1 text-xs text-muted-foreground">Add screenshots for this guide section. Images are saved in this browser profile.</p></div>
+                <div><h3 className="text-sm font-semibold">Reference images</h3><p className="mt-1 text-xs text-muted-foreground">Add up to four screenshots per section (12 across the guide). Images are saved in this browser profile.</p></div>
                 <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-accent">Add images
                   <input type="file" accept="image/*" multiple className="sr-only" onChange={(event) => {
                     const files = Array.from(event.target.files ?? []);
                     event.currentTarget.value = "";
-                    if (files.length + currentGuideImages.length > 4 || files.some((file) => file.size > 750_000)) { toast.error("Add up to 4 images for this section, each smaller than 750 KB."); return; }
+                    const allGuideImages = Object.values(guideImages).flat();
+                    const storedBytes = allGuideImages.reduce((total, image) => total + Math.floor(image.length * 0.75), 0);
+                    const incomingBytes = files.reduce((total, file) => total + file.size, 0);
+                    if (files.length + currentGuideImages.length > 4 || allGuideImages.length + files.length > 12 || storedBytes + incomingBytes > 3_000_000 || files.some((file) => file.size > 750_000)) { toast.error("Add up to 4 images per section and 12 across the guide; each must be under 750 KB and the total under 3 MB."); return; }
                     void Promise.all(files.map((file) => new Promise<string>((resolve, reject) => {
                       const reader = new FileReader();
                       reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read image"));
