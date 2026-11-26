@@ -13,7 +13,7 @@ Never commit the private key or paste it into source code, issues, pull requests
 
 ## First updater-enabled release
 
-The app version currently lives in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml. They must match exactly. The release workflow rejects a tag that does not match that version.
+The app version currently lives in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml. They must match exactly. The release workflow rejects a tag that does not match that version and fails early if the updater private-key secret is missing. Tauri signs the release artifacts with that private key; the installed app verifies the signature against its embedded public key before installation.
 
 The repository has an empty v0.1.3 GitHub Release. The installed CI build is version 0.1.3 and already contains the updater foundation, so do not try to update it with another v0.1.3 build. This branch advances both app version files to 0.1.4. After PR #11 and this updater PR are merged, publish v0.1.4 from main. The installed 0.1.3 app can detect that higher version using its existing updater code, download the signed package, and then receive the improved updater experience. The empty v0.1.3 release can be left as-is.
 
