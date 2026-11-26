@@ -173,7 +173,19 @@ fn migrations() -> Vec<Migration> {
         Migration {
             version: 28,
             description: "create_local_file_attachments",
-            sql: "CREATE TABLE local_attachments (id TEXT PRIMARY KEY NOT NULL, note_id TEXT REFERENCES daily_notes(id) ON DELETE CASCADE, message_id TEXT REFERENCES messages(id) ON DELETE CASCADE, name TEXT NOT NULL, mime_type TEXT NOT NULL DEFAULT 'application/octet-stream', kind TEXT NOT NULL CHECK (kind IN ('image', 'document', 'text', 'pasted-text')), size_bytes INTEGER NOT NULL DEFAULT 0, data_url TEXT, extracted_text TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, CHECK ((note_id IS NOT NULL AND message_id IS NULL) OR (note_id IS NULL AND message_id IS NOT NULL))); CREATE INDEX local_attachments_note_id_idx ON local_attachments(note_id, created_at); CREATE INDEX local_attachments_message_id_idx ON local_attachments(message_id, created_at);",
+            sql: "CREATE TABLE local_attachments (id TEXT PRIMARY KEY NOT NULL, note_id TEXT REFERENCES daily_notes(id) ON DELETE CASCADE, message_id TEXT REFERENCES messages(id) ON DELETE CASCADE, name TEXT NOT NULL, mime_type TEXT NOT NULL DEFAULT 'application/octet-stream', kind TEXT NOT NULL CHECK (kind IN ('image', 'document', 'text', 'pasted-text')), size_bytes INTEGER NOT NULL DEFAULT 0, data_url TEXT, extracted_text TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, CHECK ((note_id IS NOT NULL AND message_id IS NULL) OR (note_id IS NULL AND message_id IS NOT NULL)));",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 29,
+            description: "index_note_file_attachments",
+            sql: "CREATE INDEX local_attachments_note_id_idx ON local_attachments(note_id, created_at);",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 30,
+            description: "index_message_file_attachments",
+            sql: "CREATE INDEX local_attachments_message_id_idx ON local_attachments(message_id, created_at);",
             kind: MigrationKind::Up,
         },
     ]
