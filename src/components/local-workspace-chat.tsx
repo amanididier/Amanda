@@ -202,7 +202,7 @@ export function LocalWorkspaceChat({
       }
       await executeSql(
         "UPDATE conversations SET updated_at = $1, title = CASE WHEN title = 'Amanda' THEN $2 ELSE title END WHERE id = $3",
-        [now, content.replace(/\s+/g, " ").slice(0, 72), activeConversation.id],
+        [now, (content || attachmentSummary || "Attachments").replace(/\s+/g, " ").slice(0, 72), activeConversation.id],
       );
       queryClient.invalidateQueries({ queryKey: ["conversations", workspace.id] });
       queryClient.setQueryData<LocalMessage[]>(
