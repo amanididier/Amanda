@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   FlaskConical,
@@ -56,6 +56,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { executeSql, isDesktopApp } from "@/lib/database";
 import { workspacesQuery } from "@/lib/queries";
+import { ensureLocalModelConnection, stopLocalModel } from "@/lib/local-model-session";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { createWorkspace, type WorkspaceType } from "@/lib/workspaces";
@@ -73,49 +74,66 @@ export function AppShell({ children }: { children: ReactNode }) {
   const startupAttempted = useRef(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!isDesktopApp() || startupAttempted.current) return;
     startupAttempted.current = true;
-    queryClient.setQueryData(["model-boot-state"], "starting");
-    void (async () => {
-      const cached = queryClient.getQueryData<{ baseUrl: string; apiKey: string }>(["model-connection"]);
-      if (cached) { queryClient.setQueryData(["model-boot-state"], "ready"); return; }
-      const status = await invoke<{ installed: boolean; modelPath: string }>("get_model_status");
-      let selectedPath = "";
-      try { selectedPath = window.localStorage.getItem("amanda-selected-model-path") ?? ""; } catch { selectedPath = ""; }
-      if (!selectedPath && status.installed) selectedPath = status.modelPath;
-      if (!selectedPath) {
-        const models = await invoke<Array<{ path: string; isDefault: boolean }>>("list_local_models");
-        selectedPath = models.find((model) => model.isDefault)?.path ?? models[0]?.path ?? "";
-      }
-      if (!selectedPath) { queryClient.setQueryData(["model-boot-state"], "missing"); return; }
-      const connection = await invoke<{ baseUrl: string; apiKey: string }>("start_local_model", { modelPath: selectedPath });
-      // Do not enable the composer until the model returns an actual completion.
-      const testResponse = await fetch(`${connection.baseUrl}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${connection.apiKey}`,
-        },
-        signal: AbortSignal.timeout(45_000),
-        body: JSON.stringify({
-          messages: [{ role: "user", content: "Reply with exactly: Amanda is ready." }],
-          max_tokens: 24,
-          temperature: 0.1,
-          stream: false,
-        }),
-      });
-      if (!testResponse.ok) throw new Error(`The local model test returned HTTP ${testResponse.status}`);
-      const testResult = (await testResponse.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      if (!testResult.choices?.[0]?.message?.content?.trim()) throw new Error("The model started but did not return a chat response.");
-      queryClient.setQueryData(["model-connection"], connection);
-      queryClient.setQueryData(["model-boot-state"], "ready");
-      void queryClient.invalidateQueries({ queryKey: ["model-status"] });
-    })().catch((error: unknown) => {
-      queryClient.setQueryData(["model-boot-state"], "error");
-      queryClient.setQueryData(["model-boot-error"], error instanceof Error ? error.message : String(error));
-    });
+    void ensureLocalModelConnection(queryClient).catch(() => {});
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    void getCurrentWindow()
+      .setTheme(theme === "system" ? null : theme)
+      .catch(() => {});
+  }, [theme]);
+
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    let timeoutId: number | undefined;
+
+    const scheduleIdleStop = () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(async () => {
+        const activeRequest = queryClient.getQueryData<boolean>(["model-active-request"]);
+        const bootState = queryClient.getQueryData<string>(["model-boot-state"]);
+        const connection = queryClient.getQueryData<{ baseUrl: string; apiKey: string } | null>([
+          "model-connection",
+        ]);
+
+        if (activeRequest || bootState === "starting") {
+          scheduleIdleStop();
+          return;
+        }
+        if (!connection) return;
+
+        try {
+          await stopLocalModel(queryClient);
+        } catch (error) {
+          queryClient.setQueryData(
+            ["model-boot-error"],
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }, 10 * 60 * 1000);
+    };
+
+    window.addEventListener("pointerdown", scheduleIdleStop);
+    window.addEventListener("keydown", scheduleIdleStop);
+    window.addEventListener("wheel", scheduleIdleStop, { passive: true });
+    window.addEventListener("touchstart", scheduleIdleStop, { passive: true });
+    window.addEventListener("focusin", scheduleIdleStop);
+    scheduleIdleStop();
+
+    return () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.removeEventListener("pointerdown", scheduleIdleStop);
+      window.removeEventListener("keydown", scheduleIdleStop);
+      window.removeEventListener("wheel", scheduleIdleStop);
+      window.removeEventListener("touchstart", scheduleIdleStop);
+      window.removeEventListener("focusin", scheduleIdleStop);
+    };
   }, [queryClient]);
 
   return (
@@ -144,7 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
-          <div className="inline-flex items-center gap-2"><img src="/favicon.ico" alt="" className="size-6 rounded bg-white p-0.5" /><span className="font-serif text-lg text-foreground">Amanda</span></div>
+          <div className="inline-flex items-center gap-2"><img src="/amanda-mark.svg" alt="" className="size-6 rounded-md" /><span className="font-serif text-lg text-foreground">Amanda</span></div>
         </div>
 
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</main>
@@ -216,7 +234,7 @@ function SidebarContent({
           className={cn("inline-flex items-center gap-2 font-serif text-xl tracking-tight text-foreground", collapsed && "justify-center")}
           aria-label="Amanda home"
         >
-          <img src="/favicon.ico" alt="" className="size-6 rounded bg-white p-0.5" />
+          <img src="/amanda-mark.svg" alt="" className="size-6 rounded-md" />
           {!collapsed && <span>Amanda</span>}
         </Link>
         {onToggleCollapse && (
