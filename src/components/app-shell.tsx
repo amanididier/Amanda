@@ -33,7 +33,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -448,7 +447,7 @@ export function CreateWorkspaceDialog({
     setBusy(true);
     try {
       const workspace = await createWorkspace(type, name);
-      toast.success(type === "research" ? "Research hub created" : "Project created");
+      toast.success(type === "research" ? "Research created" : "Project created");
       setName("");
       onCreated(workspace.id);
     } catch (error) {
@@ -463,9 +462,6 @@ export function CreateWorkspaceDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New workspace</DialogTitle>
-          <DialogDescription>
-            A workspace has its own conversation with Amanda, execution plan, and notes.
-          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
@@ -489,7 +485,7 @@ export function CreateWorkspaceDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="project">Project</SelectItem>
-                <SelectItem value="research">Research hub</SelectItem>
+                <SelectItem value="research">Research</SelectItem>
               </SelectContent>
             </Select>
           </div>
