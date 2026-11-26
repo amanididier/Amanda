@@ -15,7 +15,7 @@ Never commit the private key or paste it into source code, issues, pull requests
 
 The app version currently lives in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml. They must match exactly. The release workflow rejects a tag that does not match that version.
 
-If users already installed version 0.1.3 from a CI artifact, publish the signed baseline release as v0.1.3 first. It will not appear as an update to an already-installed 0.1.3 app because it is the same version. The next release (for example, 0.1.4) is the first one that those installations can detect and install in-app.
+The repository currently has a v0.1.3 GitHub Release with no assets. After PR #11 and the updater PR are merged, run the Windows installer workflow manually from main with release_tag set to v0.1.3. This populates that existing release with the signed installer, signature, and latest.json. It is the signed baseline for the already-installed 0.1.3 app; it will not update that same version because the version number is equal. The next release (for example, 0.1.4) is the first one that those installations can detect and install in-app.
 
 ## Publishing each future update
 
