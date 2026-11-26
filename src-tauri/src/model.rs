@@ -21,7 +21,8 @@ const MODEL_REVISION: &str = "7d26695454df6de5fbcce2e58681e62dae06ce43";
 const MODEL_FILENAME: &str = "Qwen_Qwen3.5-2B-Q4_K_M.gguf";
 const MODEL_SHA256: &str = "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8";
 const MODEL_SIZE: u64 = 1_396_198_496;
-const CONTEXT_SIZE: &str = "4096";
+// Qwen3.5-2B supports long contexts; 16K balances research prompts with local RAM use.
+const CONTEXT_SIZE: &str = "16384";
 const CPU_THREADS: &str = "2";
 
 #[derive(Clone, Default)]
