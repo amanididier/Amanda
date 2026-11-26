@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   attachmentPromptContext,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/local-attachments";
 
 describe("local attachment helpers", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("turns long pasted text into a compact local attachment with a line count", () => {
     vi.stubGlobal("crypto", { randomUUID: () => "test-attachment-id" });
     const attachment = createPastedTextAttachment("First line\nSecond line\nThird line");
