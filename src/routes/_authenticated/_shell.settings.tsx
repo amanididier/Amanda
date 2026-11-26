@@ -322,6 +322,7 @@ function SettingsPage() {
   const progressPercent =
     currentProgress?.percent ??
     Math.min(100, Math.floor((progressBytes / (modelStatus?.totalBytes || 1)) * 100));
+  const currentGuideImages = guideImages[guideTopic] ?? [];
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
