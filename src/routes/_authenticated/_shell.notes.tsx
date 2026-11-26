@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Archive, ArrowLeft, FilePlus2, ImagePlus, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -65,6 +65,14 @@ function NotesPage() {
   const [dirty, setDirty] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const desktop = isDesktopApp();
+  const loadedNoteId = useRef<string | null>(null);
+  const editRevision = useRef(0);
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+
+  function markDirty() {
+    editRevision.current += 1;
+    markDirty();
+  }
 
   const filteredNotes = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase();
@@ -79,6 +87,7 @@ function NotesPage() {
 
   useEffect(() => {
     if (!activeNote) {
+      loadedNoteId.current = null;
       setDraftTitle("");
       setDraftContent("");
       setDraftProjectId("none");
@@ -86,39 +95,44 @@ function NotesPage() {
       setDirty(false);
       return;
     }
-    setSelectedId(activeNote.id);
+    // Query-cache updates after autosave must never overwrite the live editor
+    // value: doing so resets the caret and can discard characters typed meanwhile.
+    if (loadedNoteId.current === activeNote.id) return;
+    loadedNoteId.current = activeNote.id;
     setDraftTitle(activeNote.title);
     setDraftContent(activeNote.content);
     setDraftProjectId(activeNote.project_id ?? "none");
     try { setDraftImages(JSON.parse(activeNote.images || "[]") as string[]); } catch { setDraftImages([]); }
+    editRevision.current += 1;
     setDirty(false);
   }, [activeNote]);
 
   useEffect(() => {
     if (!dirty || !activeNote || !desktop) return;
     const noteId = activeNote.id;
+    const saveRevision = editRevision.current;
     const title = draftTitle.trim() || "Untitled note";
     const content = draftContent;
     const projectId = draftProjectId === "none" ? null : draftProjectId;
     const images = JSON.stringify(draftImages);
     const updatedAt = new Date().toISOString();
     const timer = window.setTimeout(() => {
-      void executeSql(
-        "UPDATE daily_notes SET title = $1, content = $2, project_id = $3, updated_at = $4, images = $5 WHERE id = $6",
-        [title, content, projectId, updatedAt, images, noteId],
-      )
-        .then(() => {
-          queryClient.setQueryData<Note[]>(["daily-notes", false], (current = []) =>
-            current.map((note) =>
-              note.id === noteId
-                ? { ...note, title, content, project_id: projectId, updated_at: updatedAt, images }
-                : note,
-            ),
-          );
-          setDirty(false);
-        })
-        .catch(() => toast.error("Could not save this note"));
-    }, 500);
+      // Serialize writes so a slower older write can never land after a newer one.
+      saveQueue.current = saveQueue.current.then(async () => {
+        await executeSql(
+          "UPDATE daily_notes SET title = $1, content = $2, project_id = $3, updated_at = $4, images = $5 WHERE id = $6",
+          [title, content, projectId, updatedAt, images, noteId],
+        );
+        queryClient.setQueryData<Note[]>(["daily-notes", false], (current = []) =>
+          current.map((note) =>
+            note.id === noteId
+              ? { ...note, title, content, project_id: projectId, updated_at: updatedAt, images }
+              : note,
+          ),
+        );
+        if (editRevision.current === saveRevision) setDirty(false);
+      }).catch(() => toast.error("Could not save this note"));
+    }, 650);
     return () => window.clearTimeout(timer);
   }, [activeNote, desktop, draftContent, draftImages, draftProjectId, draftTitle, dirty, queryClient]);
 
@@ -171,7 +185,7 @@ function NotesPage() {
       reader.readAsDataURL(file);
     })));
     setDraftImages((current) => [...current, ...encoded]);
-    setDirty(true);
+    markDirty();
   }
 
   async function backToNotes() {
@@ -248,7 +262,7 @@ function NotesPage() {
         </p>
       )}
 
-      <div className="mt-6 flex items-center gap-3">
+      {!activeNote && <div className="mt-6 flex items-center gap-3">
         <div className="relative min-w-0 flex-1">
           <Label htmlFor="notes-search" className="sr-only">Search notes</Label>
           <Search aria-hidden="true" className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
@@ -265,12 +279,12 @@ function NotesPage() {
             <FilePlus2 data-icon="inline-start" /> Create note
           </Button>
         )}
-      </div>
+      </div>}
 
       {activeNote ? (
         <section
           aria-label="Note editor"
-          className={`mt-6 min-h-[65vh] rounded-lg border border-border bg-card px-5 py-5 sm:px-10 sm:py-8 ${draggingImages ? "border-primary bg-muted/30" : ""}`}
+          className={`mt-0 min-h-[calc(100vh-7rem)] w-full rounded-none border-0 bg-transparent px-0 py-5 sm:px-0 sm:py-7 ${draggingImages ? "bg-muted/30" : ""}`}
           onDragOver={(event) => { event.preventDefault(); setDraggingImages(true); }}
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingImages(false); }}
           onDrop={(event) => { event.preventDefault(); setDraggingImages(false); void addImages(event.dataTransfer.files); }}
@@ -294,13 +308,13 @@ function NotesPage() {
             <Input
               id="note-title"
               value={draftTitle}
-              onChange={(event) => { setDraftTitle(event.target.value); setDirty(true); }}
+              onChange={(event) => { setDraftTitle(event.target.value); markDirty(); }}
               placeholder="Untitled note"
-              className="h-auto border-0 bg-transparent px-0 font-serif text-3xl shadow-none focus-visible:ring-0 sm:text-4xl"
+              className="h-auto border-0 bg-transparent px-0 font-serif text-4xl tracking-tight shadow-none focus-visible:ring-0 sm:text-5xl"
               disabled={!desktop}
             />
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <Select value={draftProjectId} onValueChange={(value) => { setDraftProjectId(value); setDirty(true); }} disabled={!desktop}>
+              <Select value={draftProjectId} onValueChange={(value) => { setDraftProjectId(value); markDirty(); }} disabled={!desktop}>
                 <SelectTrigger id="note-project" className="w-48 border-0 bg-muted/50">
                   <SelectValue placeholder="No project" />
                 </SelectTrigger>
@@ -331,7 +345,7 @@ function NotesPage() {
                       variant="secondary"
                       size="sm"
                       className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                      onClick={() => { setDraftImages((current) => current.filter((_, itemIndex) => itemIndex !== index)); setDirty(true); }}
+                      onClick={() => { setDraftImages((current) => current.filter((_, itemIndex) => itemIndex !== index)); markDirty(); }}
                     >Remove</Button>
                   </div>
                 ))}
@@ -340,12 +354,11 @@ function NotesPage() {
             <Textarea
               id="note-content"
               value={draftContent}
-              onChange={(event) => { setDraftContent(event.target.value); setDirty(true); }}
+              onChange={(event) => { setDraftContent(event.target.value); markDirty(); }}
               placeholder="Start writing…"
               className="min-h-[42vh] resize-y border-0 bg-transparent px-0 text-base leading-7 shadow-none focus-visible:ring-0"
               disabled={!desktop}
             />
-            <p className="text-xs text-muted-foreground">Drop images anywhere on this page, or use Add images. Images are saved with this note on your device.</p>
           </div>
 
           <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -379,7 +392,7 @@ function NotesPage() {
                   key={note.id}
                   type="button"
                   onClick={() => setSelectedId(note.id)}
-                  className="min-h-36 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
+                  className="h-44 overflow-hidden rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
                 >
                   <span className="block truncate text-base font-medium">{note.title || "Untitled note"}</span>
                   <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{note.content || "No text yet"}</span>
