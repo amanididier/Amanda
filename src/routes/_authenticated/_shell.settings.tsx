@@ -108,7 +108,7 @@ function SettingsPage() {
       const saved = window.localStorage.getItem("amanda-guide-reference-images");
       if (saved) setGuideImages(JSON.parse(saved) as Record<string, string[]>);
     } catch {
-      setGuideImages([]);
+      setGuideImages({});
     } finally {
       setGuideImagesLoaded(true);
     }
@@ -618,7 +618,7 @@ function SettingsPage() {
               ["notes", "Daily Notes"], ["settings", "Settings"],
               ["memory-archive", "Memory and archive"], ["backup", "Backup and restore"],
             ].map(([id, label]) => (
-              <button key={id} type="button" onClick={() => setGuideTopic(id)} aria-current={guideTopic === id ? "page" : undefined} className={"rounded-md px-3 py-2 text-left text-sm " + (guideTopic === id ? "bg-accent font-medium" : "text-muted-foreground hover:bg-accent/60")}>{label}</button>
+              <button key={id} type="button" onClick={() => { if (id) setGuideTopic(id); }} aria-current={guideTopic === id ? "page" : undefined} className={"rounded-md px-3 py-2 text-left text-sm " + (guideTopic === id ? "bg-accent font-medium" : "text-muted-foreground hover:bg-accent/60")}>{label}</button>
             ))}
           </nav>
           <article className="min-w-0 rounded-xl border border-border bg-card p-5 sm:p-6">
