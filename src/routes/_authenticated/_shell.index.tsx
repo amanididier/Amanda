@@ -31,18 +31,20 @@ function WorkspaceHomePage() {
 
   return (
     <div className="relative flex min-h-full flex-col">
-      <div className="absolute top-5 right-6 z-10">
-        <Button
-          type="button"
-          variant={temporary ? "secondary" : "ghost"}
-          size="icon"
-          aria-label={temporary ? "Exit temporary chat" : "Start temporary chat"}
-          title={temporary ? "Temporary chat is on" : "Temporary chat"}
-          onClick={() => setTemporary((value) => !value)}
-        >
-          <EyeOff aria-hidden="true" />
-        </Button>
-      </div>
+      {!temporary && (
+        <div className="absolute top-5 right-6 z-10">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Start temporary chat"
+            title="Temporary chat"
+            onClick={() => setTemporary(true)}
+          >
+            <EyeOff aria-hidden="true" />
+          </Button>
+        </div>
+      )}
 
       <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-6 py-16 sm:px-10">
         {temporary ? (
