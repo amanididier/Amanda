@@ -31,6 +31,13 @@ export async function readModelStream(
   let responseText = "";
   let contentBuffer = "";
   let insideThinking = false;
+  let lastEmittedText = "";
+
+  const emitVisibleText = () => {
+    if (responseText === lastEmittedText) return;
+    lastEmittedText = responseText;
+    onText(responseText);
+  };
 
   const appendVisibleContent = (chunk: string) => {
     contentBuffer += chunk;
@@ -67,7 +74,7 @@ export async function readModelStream(
       }
       break;
     }
-    onText(responseText);
+    emitVisibleText();
   };
 
   const handleEvent = () => {
@@ -111,7 +118,7 @@ export async function readModelStream(
     if (!insideThinking) {
       responseText += contentBuffer.replace(/<\/?think>/gi, "").replace(/<think>?$/i, "");
     }
-    onText(responseText);
+    emitVisibleText();
     return {
       text: responseText,
       toolCalls: [...toolCalls.values()].sort((left, right) => left.index - right.index),
