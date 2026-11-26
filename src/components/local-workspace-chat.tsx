@@ -82,13 +82,10 @@ export function LocalWorkspaceChat({
 }) {
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
-  const [pendingMessage] = useState(() => workspace.is_system === 0 ? takePendingWorkspaceMessage() : null);
-  const [attachments, setAttachments] = useState<LocalAttachment[]>(() => pendingMessage?.attachments ?? []);
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const attachmentInput = useRef<HTMLInputElement>(null);
-  const [input, setInput] = useState(() =>
-    pendingMessage?.prompt ?? (!landing && workspace.is_system === 0 ? (takePendingWorkspacePrompt() ?? "") : ""),
-  );
-  const [autoSendPendingPrompt, setAutoSendPendingPrompt] = useState(Boolean(pendingMessage));
+  const [input, setInput] = useState("");
+  const [autoSendPendingPrompt, setAutoSendPendingPrompt] = useState(false);
   const [sending, setSending] = useState(false);
   const [streamedResponse, setStreamedResponse] = useState("");
   const [progressLabel, setProgressLabel] = useState("Reading your message");
@@ -127,6 +124,22 @@ export function LocalWorkspaceChat({
   useEffect(() => {
     endOfMessages.current?.scrollIntoView({ block: "end" });
   }, [messages, streamedResponse]);
+
+  useEffect(() => {
+    if (workspace.is_system !== 0) return;
+    const pendingMessage = takePendingWorkspaceMessage();
+    if (pendingMessage) {
+      setAttachments(pendingMessage.attachments);
+      setInput(pendingMessage.prompt);
+      setAutoSendPendingPrompt(true);
+      return;
+    }
+    const pendingPrompt = takePendingWorkspacePrompt();
+    if (pendingPrompt) {
+      setInput(pendingPrompt);
+      setAutoSendPendingPrompt(true);
+    }
+  }, [workspace.id, workspace.is_system]);
 
   useEffect(() => {
     if (!sending || streamedResponse) return;
@@ -429,7 +442,7 @@ export function LocalWorkspaceChat({
     if (!autoSendPendingPrompt || !modelReady || !input.trim() || sending) return;
     setAutoSendPendingPrompt(false);
     void handleSend();
-  }, [autoSendPendingPrompt, input, modelReady, sending]);
+  }, [autoSendPendingPrompt, handleSend, input, modelReady, sending]);
 
   return (
     <section
