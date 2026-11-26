@@ -221,7 +221,11 @@ export function LocalWorkspaceChat({
           content: message.content.slice(-MAX_HISTORY_MESSAGE_CHARS),
         }));
       const attachmentContext = attachmentPromptContext(currentAttachments);
-      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext].filter(Boolean).join("\n\n");
+      const imageContext = currentAttachments
+        .filter((item) => item.kind === "image")
+        .map((item) => `Image attached: ${item.name}. Inspect the image if visual input is supported by this local model.`)
+        .join("\n");
+      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext, imageContext].filter(Boolean).join("\n\n");
       const modelHistory = history.map((message, index) =>
         index === history.length - 1
           ? {
@@ -245,32 +249,48 @@ export function LocalWorkspaceChat({
           toast.error(error instanceof Error ? "Web search could not run: " + error.message : "Web search could not run. Check your provider in Settings.");
         }
       }
-      const response = await fetch(`${modelConnection.baseUrl}/v1/chat/completions`, {
+      const requestBody = {
+        messages: [
+          {
+            role: "system",
+            content: createProjectContext(workspace, tasks, relatedContext, webResults),
+          },
+          ...modelHistory,
+        ],
+        stream: true,
+        max_tokens: 1_200,
+        temperature: 0.7,
+        top_p: 0.8,
+        presence_penalty: 1.5,
+        top_k: 20,
+        ...(workspace.workspace_type === "project" && workspace.is_system === 0
+          ? { tools: LOCAL_ACTION_TOOLS, tool_choice: "auto" }
+          : {}),
+      };
+      let response = await fetch(`${modelConnection.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${modelConnection.apiKey}`,
         },
         signal: controller.signal,
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content: createProjectContext(workspace, tasks, relatedContext, webResults),
-            },
-            ...modelHistory,
-          ],
-          stream: true,
-          max_tokens: 1_200,
-          temperature: 0.7,
-          top_p: 0.8,
-          presence_penalty: 1.5,
-          top_k: 20,
-          ...(workspace.workspace_type === "project" && workspace.is_system === 0
-            ? { tools: LOCAL_ACTION_TOOLS, tool_choice: "auto" }
-            : {}),
-        }),
+        body: JSON.stringify(requestBody),
       });
+      if (!response.ok && currentAttachments.some((item) => item.kind === "image") && [400, 422].includes(response.status)) {
+        const textOnlyHistory = history.map((message, index) =>
+          index === history.length - 1 ? { ...message, content: userPrompt } : message,
+        );
+        response = await fetch(`${modelConnection.baseUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${modelConnection.apiKey}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({ ...requestBody, messages: [requestBody.messages[0], ...textOnlyHistory] }),
+        });
+        if (response.ok) toast.warning("This local model cannot read image input. Your attached documents were still included.");
+      }
       if (!response.ok) {
         const details = await response.text().catch(() => "");
         throw new Error(
