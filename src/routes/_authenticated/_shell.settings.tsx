@@ -70,6 +70,7 @@ type ModelConnection = { baseUrl: string; apiKey: string };
 type LocalModel = { name: string; path: string; sizeBytes: number; isDefault: boolean };
 type WebSearchProvider = "firecrawl" | "brave";
 type WebSearchStatus = { activeProvider: WebSearchProvider; firecrawlConfigured: boolean; braveConfigured: boolean };
+type UpdateCheckStatus = { status: "checking" | "available" | "current" | "error"; version?: string; message?: string };
 
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -81,6 +82,7 @@ function SettingsPage() {
   const desktop = isDesktopApp();
   const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
   const [busy, setBusy] = useState(false);
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>({ status: "current" });
   const [connection, setConnection] = useState<ModelConnection | null>(() => queryClient.getQueryData<ModelConnection>(["model-connection"]) ?? null);
   const [testResponse, setTestResponse] = useState<string | null>(null);
   const [selectedModelPath, setSelectedModelPath] = useState("");
@@ -102,6 +104,15 @@ function SettingsPage() {
   useEffect(() => {
     if (webSearchStatus?.activeProvider) setWebProvider(webSearchStatus.activeProvider);
   }, [webSearchStatus?.activeProvider]);
+
+  useEffect(() => {
+    const handleUpdateStatus = (event: Event) => {
+      const detail = (event as CustomEvent<UpdateCheckStatus>).detail;
+      if (detail) setUpdateCheckStatus(detail);
+    };
+    window.addEventListener("amanda:update-check-status", handleUpdateStatus);
+    return () => window.removeEventListener("amanda:update-check-status", handleUpdateStatus);
+  }, []);
 
   useEffect(() => {
     try {
@@ -298,6 +309,7 @@ function SettingsPage() {
 
   const settingSections = [
     { id: "appearance", label: "Appearance", description: "Theme and display", icon: Palette },
+    { id: "updates", label: "App updates", description: "Check and install Amanda updates", icon: Download },
     { id: "web-search", label: "Web search", description: "Firecrawl and Brave", icon: Globe },
     { id: "data", label: "Your data", description: "Memory and archive", icon: Brain },
     { id: "local-ai", label: "Local AI model", description: "Install and manage Amanda's model", icon: Cpu },
@@ -368,6 +380,44 @@ function SettingsPage() {
             </SelectContent>
           </Select>
         </div>
+      </section>
+
+      <section hidden={activeSection !== "updates"} className="mt-2" aria-labelledby="updates-settings-heading">
+        <div className="flex items-center gap-2"><Download className="size-4 text-muted-foreground" /><h2 id="updates-settings-heading" className="text-sm font-semibold">Amanda updates</h2></div>
+        <Card className="mt-3 max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Keep Amanda up to date</CardTitle>
+            <CardDescription>Amanda checks for new signed releases when it starts, when you return after a while, and every six hours. Updates install inside the app without asking you to download the installer manually.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {!desktop ? (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Update checks are available in the installed Windows desktop app.</p>
+            ) : (
+              <>
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm" aria-live="polite">
+                  {updateCheckStatus.status === "checking" && <p className="text-muted-foreground">Checking GitHub for a newer Amanda release…</p>}
+                  {updateCheckStatus.status === "available" && <p className="font-medium">Amanda {updateCheckStatus.version} is available. Use the Update button at the top-right to install it.</p>}
+                  {updateCheckStatus.status === "current" && <p className="text-muted-foreground">Amanda is up to date. We will let you know when a newer release is published.</p>}
+                  {updateCheckStatus.status === "error" && <p className="text-destructive">Could not check for updates. Check your internet connection and try again.{updateCheckStatus.message ? ` Details: ${updateCheckStatus.message}` : ""}</p>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setUpdateCheckStatus({ status: "checking" });
+                      window.dispatchEvent(new Event("amanda:check-for-updates"));
+                    }}
+                    disabled={updateCheckStatus.status === "checking"}
+                  >
+                    <Download data-icon="inline-start" />
+                    Check for updates
+                  </Button>
+                  <span className="text-xs text-muted-foreground">Updates are digitally signed and verified before installation.</span>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       <section hidden={activeSection !== "web-search"} className="mt-2" aria-labelledby="web-search-settings-heading">
