@@ -26,6 +26,7 @@ export function UpdateNotice() {
   const [downloadedBytes, setDownloadedBytes] = useState(0);
   const [contentLength, setContentLength] = useState<number | null>(null);
   const updateRef = useRef<AvailableUpdate | null>(null);
+  const installingRef = useRef(false);
 
   useEffect(() => {
     if (!isDesktopApp()) return;
@@ -35,7 +36,7 @@ export function UpdateNotice() {
     let lastCheckedAt = 0;
 
     const checkForUpdate = async () => {
-      if (checking || !active) return;
+      if (checking || installingRef.current || !active) return;
       checking = true;
       publishUpdateStatus({ status: "checking" });
 
@@ -97,8 +98,9 @@ export function UpdateNotice() {
 
   async function installUpdate() {
     const update = updateRef.current;
-    if (!update || phase !== "idle") return;
+    if (!update || phase !== "idle" || installingRef.current) return;
 
+    installingRef.current = true;
     setPhase("downloading");
     setDownloadedBytes(0);
     setContentLength(null);
@@ -123,6 +125,7 @@ export function UpdateNotice() {
         // The updater may already have released the resource.
       }
       updateRef.current = null;
+      installingRef.current = false;
       setAvailableUpdate(null);
       setPhase("idle");
       publishUpdateStatus({ status: "error", message });
