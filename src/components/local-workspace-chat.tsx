@@ -26,6 +26,7 @@ import {
   type LocalAction,
 } from "@/lib/local-actions";
 import { readModelStream } from "@/lib/local-model-stream";
+import { ensureLocalModelConnection } from "@/lib/local-model-session";
 import { messagesQuery, workspaceConversationsQuery } from "@/lib/queries";
 import { ensureConversation } from "@/lib/workspaces";
 import { takePendingWorkspaceMessage, takePendingWorkspacePrompt } from "@/lib/pending-workspace-prompt";
@@ -84,6 +85,7 @@ export function LocalWorkspaceChat({
   const desktop = isDesktopApp();
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const attachmentInput = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
   const [autoSendPendingPrompt, setAutoSendPendingPrompt] = useState(false);
   const [sending, setSending] = useState(false);
@@ -124,6 +126,13 @@ export function LocalWorkspaceChat({
   useEffect(() => {
     endOfMessages.current?.scrollIntoView({ block: "end" });
   }, [messages, streamedResponse]);
+
+  useEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 224)}px`;
+  }, [input]);
 
   useEffect(() => {
     if (workspace.is_system !== 0) return;
@@ -201,12 +210,8 @@ export function LocalWorkspaceChat({
       toast.error("Open Amanda desktop to use the local model");
       return;
     }
-    if (!modelConnection) {
-      toast.error("Load Qwen3.5-2B in Settings before starting a conversation");
-      return;
-    }
-
     setSending(true);
+    queryClient.setQueryData(["model-active-request"], true);
     setStreamedResponse("");
     const controller = new AbortController();
     abortController.current = controller;
@@ -214,6 +219,8 @@ export function LocalWorkspaceChat({
     let interrupted = false;
 
     try {
+      const activeModelConnection =
+        modelConnection ?? (await ensureLocalModelConnection(queryClient));
       const activeConversation = conversation ?? (await ensureConversation(workspace.id));
       const now = new Date().toISOString();
       const attachmentSummary = attachments.length ? `Attached: ${attachments.map((item) => item.name).join(", ")}` : "";
@@ -314,11 +321,11 @@ export function LocalWorkspaceChat({
           ? { tools: LOCAL_ACTION_TOOLS, tool_choice: "auto" }
           : {}),
       };
-      let response = await fetch(`${modelConnection.baseUrl}/v1/chat/completions`, {
+      let response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${modelConnection.apiKey}`,
+          Authorization: `Bearer ${activeModelConnection.apiKey}`,
         },
         signal: controller.signal,
         body: JSON.stringify(requestBody),
@@ -327,11 +334,11 @@ export function LocalWorkspaceChat({
         const textOnlyHistory = history.map((message, index) =>
           index === history.length - 1 ? { ...message, content: userPrompt } : message,
         );
-        response = await fetch(`${modelConnection.baseUrl}/v1/chat/completions`, {
+        response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${modelConnection.apiKey}`,
+            Authorization: `Bearer ${activeModelConnection.apiKey}`,
           },
           signal: controller.signal,
           body: JSON.stringify({ ...requestBody, messages: [requestBody.messages[0], ...textOnlyHistory] }),
@@ -407,6 +414,7 @@ export function LocalWorkspaceChat({
       }
       queryClient.invalidateQueries({ queryKey: ["messages"] });
       setStreamedResponse("");
+      queryClient.setQueryData(["model-active-request"], false);
       setSending(false);
       abortController.current = null;
     }
@@ -439,10 +447,10 @@ export function LocalWorkspaceChat({
   const modelReady = desktop && Boolean(modelConnection);
 
   useEffect(() => {
-    if (!autoSendPendingPrompt || !modelReady || !input.trim() || sending) return;
+    if (!autoSendPendingPrompt || !input.trim() || sending) return;
     setAutoSendPendingPrompt(false);
     void handleSend();
-  }, [autoSendPendingPrompt, handleSend, input, modelReady, sending]);
+  }, [autoSendPendingPrompt, handleSend, input, sending]);
 
   return (
     <section
@@ -573,7 +581,7 @@ export function LocalWorkspaceChat({
         />
       )}
 
-      <div className={landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}>
+      <div className={`mx-auto w-full max-w-5xl ${landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}`}>
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
           <Label htmlFor={`workspace-chat-${workspace.id}`} className="sr-only">
             Message Amanda
@@ -599,6 +607,8 @@ export function LocalWorkspaceChat({
             </div>
           )}
           <Textarea
+            ref={composerRef}
+            rows={1}
             id={`workspace-chat-${workspace.id}`}
             value={input}
             onChange={(event) => {
@@ -621,11 +631,13 @@ export function LocalWorkspaceChat({
                 ? workspace.is_system === 1
                   ? "Ask Amanda anything…"
                   : workspace.workspace_type === "research" ? "Ask about this research…" : "Ask about this project…"
-                : modelBootState === "starting" ? "Starting your local model…" : modelBootState === "error" ? "Model startup failed — open Settings for details" : "Load a local model in Settings to chat"
+                : modelBootState === "starting"
+                  ? "Write your message while Amanda starts…"
+                  : "Ask Amanda anything — she’ll wake up when you send."
             }
-            className="min-h-24 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+            className="min-h-[44px] max-h-56 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
             maxLength={MAX_PROMPT_CHARS}
-            disabled={!modelReady || sending || pendingAction !== null}
+            disabled={sending || pendingAction !== null}
           />
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
@@ -653,7 +665,7 @@ export function LocalWorkspaceChat({
                 size="icon"
                 aria-label="Attach a file"
                 title="Attach a file"
-                disabled={!desktop || sending || !modelReady}
+                disabled={!desktop || sending}
                 onClick={() => attachmentInput.current?.click()}
               >
                 <Plus aria-hidden="true" />
@@ -667,7 +679,7 @@ export function LocalWorkspaceChat({
             ) : (
               <Button
                 onClick={() => void handleSend()}
-                disabled={!modelReady || (!input.trim() && attachments.length === 0) || pendingAction !== null}
+                disabled={(!input.trim() && attachments.length === 0) || pendingAction !== null}
               >
                 <Send data-icon="inline-start" />
                 Send
