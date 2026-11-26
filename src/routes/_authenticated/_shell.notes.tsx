@@ -232,7 +232,7 @@ function NotesPage() {
       setDirty(false);
 
       let targetWorkspace = projectId ? workspaces.find((workspace) => workspace.id === projectId) : undefined;
-      if (!targetWorkspace) targetWorkspace = researchWorkspaces[0];
+      if (!targetWorkspace) targetWorkspace = researchWorkspaces.find((workspace) => workspace.name === "Notes research");
       if (!targetWorkspace) {
         targetWorkspace = await createWorkspace("research", "Notes research");
         await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
