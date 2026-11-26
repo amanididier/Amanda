@@ -228,7 +228,7 @@ function NotesPage() {
       range.collapse(true);
       selection?.removeAllRanges();
       selection?.addRange(range);
-      pendingRange.current = range.cloneRange();
+      pendingRange.current = null;
     } else {
       editor.append(node);
     }
@@ -261,8 +261,8 @@ function NotesPage() {
     const summary = document.createElement("span");
     summary.className = "mt-0.5 block truncate text-xs text-muted-foreground";
     summary.textContent = attachment.kind === "pasted-text"
-      ? `Pasted text · ${attachment.extractedText.split(/\\r?\\n/).length} lines · Click to preview`
-      : `${formatFileSize(attachment.size)} · Click to preview contents`;
+      ? `Pasted text · ${attachment.extractedText.split(/\r?\n/).length} lines · ${attachment.extractedText.slice(0, 90)}`
+      : `${formatFileSize(attachment.size)} · ${attachment.extractedText.slice(0, 90)}`;
     details.append(title, summary);
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -300,6 +300,10 @@ function NotesPage() {
 
   async function handlePastedText(value: string) {
     if (!activeNote) return;
+    if (value.length > 100_000) {
+      toast.error("This pasted block is too large. Split it into smaller sections.");
+      return;
+    }
     const attachment = createPastedTextAttachment(value);
     try {
       await persistNoteAttachment(attachment);
