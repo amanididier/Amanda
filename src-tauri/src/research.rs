@@ -96,16 +96,20 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
         let description = item
             .get("description")
             .and_then(Value::as_str)
-            .or_else(|| {
+            .map(str::to_string)
+            .unwrap_or_else(|| {
                 item.get("highlights")
                     .and_then(Value::as_array)
                     .map(|values| {
-                        // Highlights are combined below without trusting their shape.
-                        let _ = values;
-                        ""
+                        values
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .take(3)
+                            .collect::<Vec<_>>()
+                            .join(" ")
                     })
-            })
-            .unwrap_or("");
+                    .unwrap_or_default()
+            });
 
         let page_content = item
             .get("markdown")
@@ -113,7 +117,7 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
             .or_else(|| item.get("content").and_then(Value::as_str))
             .unwrap_or("");
         let fallback_content = if page_content.trim().is_empty() {
-            description
+            description.as_str()
         } else {
             page_content
         };
@@ -121,7 +125,7 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
         parsed.push(ResearchResult {
             title: take_chars(title, 300),
             url: take_chars(url, 2_000),
-            description: take_chars(description, 1_200),
+            description: take_chars(&description, 1_200),
             content: take_chars(fallback_content, 5_000),
             provider: "Firecrawl".to_string(),
         });
@@ -269,7 +273,7 @@ mod tests {
                     "title": "Research page",
                     "url": "https://example.com/research",
                     "description": "A short search snippet",
-                    "markdown": "# Full page\\nDetailed evidence"
+                    "markdown": "Full page\\nDetailed evidence"
                 }]
             }
         }"#;
