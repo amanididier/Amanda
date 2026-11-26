@@ -234,7 +234,10 @@ function WorkspacePage() {
         </div>
       )}
 
-      <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+      <Dialog open={addTaskOpen} onOpenChange={(open) => {
+        setAddTaskOpen(open);
+        if (!open) setTaskTitle("");
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add a task</DialogTitle>
