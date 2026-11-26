@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,18 +12,40 @@ const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIRECTORY = path.resolve(SCRIPT_DIRECTORY, "..");
 const RESOURCE_DIRECTORY = path.join(PROJECT_DIRECTORY, "src-tauri", "resources", "llama");
 
+async function isPinnedRuntimePrepared() {
+  try {
+    const manifest = JSON.parse(
+      await readFile(path.join(RESOURCE_DIRECTORY, "llama-runtime.json"), "utf8"),
+    );
+    const files = await readdir(RESOURCE_DIRECTORY);
+    return (
+      manifest.repository === "ggml-org/llama.cpp" &&
+      manifest.tag === "b9222" &&
+      manifest.archiveSha256 === RELEASE_SHA256 &&
+      files.includes("llama-server.exe") &&
+      files.includes("llama.dll") &&
+      files.some((file) => file.toLowerCase().endsWith(".dll"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 if (process.platform !== "win32") {
   throw new Error(
     "Amanda's native release currently targets Windows x64. Build the installer on Windows or use the Windows GitHub Actions workflow.",
   );
 }
 
-const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "amanda-llama-b9222-"));
-const archivePath = path.join(temporaryDirectory, "llama-runtime.zip");
-const extractedDirectory = path.join(temporaryDirectory, "extracted");
+if (await isPinnedRuntimePrepared()) {
+  console.log("Verified llama.cpp b9222 runtime is already prepared; skipping download.");
+} else {
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "amanda-llama-b9222-"));
+  const archivePath = path.join(temporaryDirectory, "llama-runtime.zip");
+  const extractedDirectory = path.join(temporaryDirectory, "extracted");
 
-try {
-  const response = await fetch(RELEASE_URL, { redirect: "follow" });
+  try {
+    const response = await fetch(RELEASE_URL, { redirect: "follow" });
   if (!response.ok) {
     throw new Error(`Could not download the pinned llama.cpp runtime (HTTP ${response.status}).`);
   }
@@ -90,6 +112,7 @@ try {
   console.log(
     `Prepared llama.cpp b9222 for Windows x64 (${bundledFiles.length} verified runtime files).`,
   );
-} finally {
-  await rm(temporaryDirectory, { recursive: true, force: true });
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
 }
