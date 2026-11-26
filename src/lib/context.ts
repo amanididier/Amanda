@@ -28,7 +28,7 @@ const STOP_WORDS = new Set([
 ]);
 
 export type RelatedContext = {
-  notes: Array<{ title: string; content: string }>;
+  notes: Array<{ title: string; content: string; attachmentText: string }>;
   memories: Array<{ content: string; category: string; project_id: string | null }>;
   research: Array<{
     title: string;
@@ -39,7 +39,7 @@ export type RelatedContext = {
   }>;
 };
 
-type SearchRow = { title: string; content: string };
+type SearchRow = { title: string; content: string; attachment_text: string };
 
 export function getContextTerms(query: string, limit = 5) {
   const terms = query.toLocaleLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
@@ -64,7 +64,7 @@ export async function retrieveRelatedContext(
 
   const [notes, memories, research] = await Promise.all([
     selectRows<SearchRow>(
-      `SELECT title, content FROM daily_notes WHERE archived_at IS NULL AND (project_id IS NULL OR project_id = $1) AND (${whereClause(["title", "content"])}) ORDER BY updated_at DESC LIMIT 4`,
+      `SELECT title, content, COALESCE((SELECT group_concat(name || ': ' || substr(extracted_text, 1, 6000), char(10) || char(10)) FROM local_attachments WHERE note_id = daily_notes.id AND extracted_text != ''), '') AS attachment_text FROM daily_notes WHERE archived_at IS NULL AND (project_id IS NULL OR project_id = $1) AND (${whereClause(["title", "content"])}) ORDER BY updated_at DESC LIMIT 4`,
       parameters,
     ),
     selectRows<RelatedContext["memories"][number]>(
@@ -77,5 +77,13 @@ export async function retrieveRelatedContext(
     ),
   ]);
 
-  return { notes, memories, research };
+  return {
+    notes: notes.map((note) => ({
+      title: note.title,
+      content: note.content.replace(/<!--amanda-rich-note-->/, "").replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim(),
+      attachmentText: note.attachment_text,
+    })),
+    memories,
+    research,
+  };
 }
