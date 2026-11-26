@@ -262,6 +262,7 @@ function NotesPage() {
       [attachment.id, activeNote.id, attachment.name, attachment.mimeType, attachment.kind, attachment.size, attachment.dataUrl, attachment.extractedText, createdAt],
     );
     setNoteAttachments((current) => [...current, { ...attachment, noteId: activeNote.id }]);
+    void queryClient.invalidateQueries({ queryKey: ["daily-notes", false] });
     const storedAttachment: StoredAttachment = { ...attachment, noteId: activeNote.id };
     const card = document.createElement("div");
     card.contentEditable = "false";
@@ -396,6 +397,7 @@ function NotesPage() {
     try {
       await executeSql("DELETE FROM local_attachments WHERE id = $1 AND note_id = $2", [attachment.id, attachment.noteId]);
       setNoteAttachments((current) => current.filter((item) => item.id !== attachment.id));
+      void queryClient.invalidateQueries({ queryKey: ["daily-notes", false] });
       setPreviewAttachment(null);
       const card = editorRef.current?.querySelector(`[data-amanda-attachment-id="${attachment.id}"]`);
       card?.remove();
