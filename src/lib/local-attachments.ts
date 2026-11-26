@@ -79,6 +79,19 @@ function decodePdfLiteral(value: string) {
     .replace(/\\\r?\n/g, "");
 }
 
+function decodePdfHex(value: string) {
+  const hex = value.replace(/\s/g, "");
+  if (hex.length >= 4 && hex.length % 4 === 0) {
+    let output = "";
+    for (let index = hex.startsWith("FEFF") ? 4 : 0; index + 3 < hex.length; index += 4) {
+      output += String.fromCharCode(parseInt(hex.slice(index, index + 4), 16));
+    }
+    return output;
+  }
+  const pairs = hex.match(/.{1,2}/g) ?? [];
+  return new TextDecoder().decode(new Uint8Array(pairs.map((pair) => parseInt(pair.padEnd(2, "0"), 16))));
+}
+
 async function extractPdfText(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
   const source = new TextDecoder("latin1").decode(bytes);
@@ -105,10 +118,14 @@ async function extractPdfText(buffer: ArrayBuffer) {
   const output: string[] = [];
   for (const block of searchable.matchAll(/BT([\s\S]*?)ET/g)) {
     const body = block[1] ?? "";
-    for (const token of body.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj|\[((?:[\s\S]*?))\]\s*TJ/g)) {
+    for (const token of body.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj|<([0-9A-Fa-f\s]+)>\s*Tj|\[((?:[\s\S]*?))\]\s*TJ/g)) {
       if (token[1] !== undefined) output.push(decodePdfLiteral(token[1]));
+      else if (token[2] !== undefined) output.push(decodePdfHex(token[2]));
       else {
-        for (const part of (token[2] ?? "").matchAll(/\(((?:\\.|[^\\)])*)\)/g)) output.push(decodePdfLiteral(part[1] ?? ""));
+        const arrayText = token[3] ?? "";
+        for (const part of arrayText.matchAll(/\(((?:\\.|[^\\)])*)\)|<([0-9A-Fa-f\s]+)>/g)) {
+          output.push(part[1] !== undefined ? decodePdfLiteral(part[1]) : decodePdfHex(part[2] ?? ""));
+        }
       }
     }
   }
