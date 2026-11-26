@@ -195,15 +195,6 @@ function NotesPage() {
     const inlineImageUrls = Array.from(editorRef.current?.querySelectorAll("img") ?? [])
       .map((image) => image.src)
       .filter((src) => src.startsWith("data:image/"));
-    const documentAttachments = noteAttachments.map((attachment) => ({
-      id: crypto.randomUUID(),
-      name: attachment.name,
-      mimeType: attachment.mimeType,
-      size: attachment.size,
-      kind: attachment.kind,
-      dataUrl: attachment.dataUrl,
-      extractedText: attachment.extractedText,
-    })) as LocalAttachment[];
     const imageAttachments = [...draftImages, ...inlineImageUrls].map((dataUrl, index) => ({
       id: crypto.randomUUID(),
       name: `Note image ${index + 1}`,
@@ -213,15 +204,35 @@ function NotesPage() {
       dataUrl,
       extractedText: "",
     }));
-    const noteTextAttachment = noteText ? createPastedTextAttachment(`# ${noteTitle}\n\n${noteText}`) : null;
-    const attachmentsForPrompt = [...(noteTextAttachment ? [noteTextAttachment] : []), ...documentAttachments, ...imageAttachments];
-    if (!noteText && attachmentsForPrompt.length === 0) {
-      toast.error("Add some note content or an image first");
-      return;
-    }
 
     try {
       await saveQueue.current;
+      const storedAttachments = await selectRows<{
+        name: string;
+        mime_type: string;
+        size_bytes: number;
+        kind: LocalAttachment["kind"];
+        data_url: string | null;
+        extracted_text: string;
+      }>(
+        "SELECT name, mime_type, size_bytes, kind, data_url, extracted_text FROM local_attachments WHERE note_id = $1 ORDER BY created_at ASC",
+        [activeNote.id],
+      );
+      const documentAttachments: LocalAttachment[] = storedAttachments.map((attachment) => ({
+        id: crypto.randomUUID(),
+        name: attachment.name,
+        mimeType: attachment.mime_type,
+        size: attachment.size_bytes,
+        kind: attachment.kind,
+        dataUrl: attachment.data_url,
+        extractedText: attachment.extracted_text,
+      }));
+      const noteTextAttachment = noteText ? createPastedTextAttachment(`# ${noteTitle}\n\n${noteText}`) : null;
+      const attachmentsForPrompt = [...(noteTextAttachment ? [noteTextAttachment] : []), ...documentAttachments, ...imageAttachments];
+      if (!noteText && attachmentsForPrompt.length === 0) {
+        toast.error("Add some note content or an image first");
+        return;
+      }
       const now = new Date().toISOString();
       const projectId = draftProjectId === "none" ? null : draftProjectId;
       const images = JSON.stringify(draftImages);
