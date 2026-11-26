@@ -211,7 +211,7 @@ pub async fn restore_local_backup(
         "ai_preferences",
     ];
     if REQUIRED_TABLES.iter().any(|name| !backup.tables.contains_key(*name))
-        || backup.tables.keys().any(|name| !TABLES.iter().any(|(table, _, _)| table == name))
+        || backup.tables.keys().any(|name| !TABLES.iter().any(|(table, _, _)| *table == name.as_str()))
     {
         return Err("The backup is missing one or more required Amanda data tables".to_string());
     }
