@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   attachmentPromptContext,
+  createLocalAttachment,
   createPastedTextAttachment,
   formatFileSize,
 } from "@/lib/local-attachments";
@@ -15,6 +16,18 @@ describe("local attachment helpers", () => {
     expect(attachment.name).toBe("Pasted text · 3 lines");
     expect(attachment.extractedText).toBe("First line\nSecond line\nThird line");
     expect(attachment.dataUrl).toBeNull();
+  });
+
+  it("extracts selectable text from a text-based PDF", async () => {
+    vi.stubGlobal("crypto", { randomUUID: () => "pdf-attachment-id" });
+    const pdf = new File(
+      ["%PDF-1.4\\n1 0 obj\\n<< /Length 24 >>\\nstream\\nBT (Hello from PDF) Tj ET\\nendstream\\nendobj\\n%%EOF"],
+      "sample.pdf",
+      { type: "application/pdf" },
+    );
+    const attachment = await createLocalAttachment(pdf);
+    expect(attachment.kind).toBe("document");
+    expect(attachment.extractedText).toContain("Hello from PDF");
   });
 
   it("includes extracted document text in the prompt without including binary data", () => {
