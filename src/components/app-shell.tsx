@@ -133,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile top bar + drawer */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+        <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2 md:hidden">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Open navigation">
@@ -144,7 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
-          <span className="font-serif text-lg">Amanda</span>
+          <span className="font-serif text-lg text-foreground">Amanda</span>
         </div>
 
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</main>
@@ -212,7 +212,7 @@ function SidebarContent({
       {/* Wordmark */}
       <div className={cn("flex items-center gap-2 px-3 py-3", collapsed && "justify-center px-0")}>
         {!collapsed && (
-          <Link to="/" className="font-serif text-xl tracking-tight">
+          <Link to="/" className="font-serif text-xl tracking-tight text-foreground">
             Amanda
           </Link>
         )}
