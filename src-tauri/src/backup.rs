@@ -55,6 +55,7 @@ const TABLES: &[(&str, &str, &[&str])] = &[
             "created_at",
             "updated_at",
             "archived_at",
+            "images",
         ],
     ),
     (
@@ -162,6 +163,22 @@ const TABLES: &[(&str, &str, &[&str])] = &[
             "updated_at",
         ],
     ),
+    (
+        "local_attachments",
+        "id",
+        &[
+            "id",
+            "note_id",
+            "message_id",
+            "name",
+            "mime_type",
+            "kind",
+            "size_bytes",
+            "data_url",
+            "extracted_text",
+            "created_at",
+        ],
+    ),
 ];
 
 #[derive(Deserialize)]
@@ -176,22 +193,31 @@ pub async fn restore_local_backup(
     instances: State<'_, DbInstances>,
     backup: LocalBackupImport,
 ) -> Result<(), String> {
-    if backup.format_version != 1 {
+    if backup.format_version != 1 && backup.format_version != 2 {
         return Err("This Amanda backup format is not supported".to_string());
     }
-    if backup.tables.len() != TABLES.len()
-        || TABLES
-            .iter()
-            .any(|(name, _, _)| !backup.tables.contains_key(*name))
+    const REQUIRED_TABLES: &[&str] = &[
+        "local_profile",
+        "workspaces",
+        "conversations",
+        "messages",
+        "daily_notes",
+        "execution_plans",
+        "plan_steps",
+        "tasks",
+        "memory_items",
+        "research_sources",
+        "workspace_activity",
+        "ai_preferences",
+    ];
+    if REQUIRED_TABLES.iter().any(|name| !backup.tables.contains_key(*name))
+        || backup.tables.keys().any(|name| !TABLES.iter().any(|(table, _, _)| table == name))
     {
-        return Err("The backup is missing one or more required Amanda tables".to_string());
+        return Err("The backup is missing one or more required Amanda data tables".to_string());
     }
 
     for (table_name, _, allowed_columns) in TABLES {
-        let rows = backup
-            .tables
-            .get(*table_name)
-            .ok_or_else(|| format!("The {table_name} backup data is missing"))?;
+        let rows = backup.tables.get(*table_name).map(Vec::as_slice).unwrap_or(&[]);
         if rows.len() > 100_000 {
             return Err(format!("The {table_name} backup contains too many rows"));
         }
@@ -220,7 +246,7 @@ pub async fn restore_local_backup(
 
     let restore_result = async {
         for (table_name, primary_key, allowed_columns) in TABLES {
-            let rows = backup.tables.get(*table_name).expect("table names validated");
+            let rows = backup.tables.get(*table_name).map(Vec::as_slice).unwrap_or(&[]);
             for row in rows {
                 if !row.contains_key(*primary_key) {
                     return Err(format!("A {table_name} backup row is missing its ID"));
