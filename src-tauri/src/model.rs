@@ -466,7 +466,10 @@ fn start_local_model_blocking(
             "--batch-size",
             "128",
         ])
-        .env("LLAMA_API_KEY", &api_key)
+        // Pass the generated key through llama.cpp's explicit server option.
+        // This avoids relying on environment-variable propagation for authentication.
+        .arg("--api-key")
+        .arg(&api_key)
         // Qwen3.5 can spend a short completion budget on hidden reasoning and return no
         // user-visible text. Amanda is a conversational assistant, so use non-thinking mode.
         .args(["--reasoning", "off"])
