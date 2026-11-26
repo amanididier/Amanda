@@ -35,7 +35,7 @@ const TABLES = [
   {
     name: "daily_notes",
     primaryKey: "id",
-    columns: ["id", "title", "content", "project_id", "created_at", "updated_at", "archived_at"],
+    columns: ["id", "title", "content", "project_id", "created_at", "updated_at", "archived_at", "images"],
   },
   {
     name: "execution_plans",
@@ -127,6 +127,22 @@ const TABLES = [
       "updated_at",
     ],
   },
+  {
+    name: "local_attachments",
+    primaryKey: "id",
+    columns: [
+      "id",
+      "note_id",
+      "message_id",
+      "name",
+      "mime_type",
+      "kind",
+      "size_bytes",
+      "data_url",
+      "extracted_text",
+      "created_at",
+    ],
+  },
 ] as const;
 
 export type BackupValue = string | number | boolean | null;
@@ -134,7 +150,7 @@ type BackupRow = Record<string, BackupValue>;
 type TableName = (typeof TABLES)[number]["name"];
 
 export type LocalBackup = {
-  formatVersion: 1;
+  formatVersion: 2;
   exportedAt: string;
   tables: Record<TableName, BackupRow[]>;
 };
@@ -145,7 +161,7 @@ export async function createLocalBackup(): Promise<LocalBackup> {
     tables[table.name] = await selectRows<BackupRow>(`SELECT * FROM ${table.name}`);
   }
   return {
-    formatVersion: 1,
+    formatVersion: 2,
     exportedAt: new Date().toISOString(),
     tables,
   };
@@ -159,12 +175,16 @@ export function parseLocalBackup(json: string): LocalBackup {
     throw new Error("This file is not valid JSON");
   }
 
-  if (!isRecord(value) || value["formatVersion"] !== 1 || !isRecord(value["tables"])) {
+  if (
+    !isRecord(value) ||
+    (value["formatVersion"] !== 1 && value["formatVersion"] !== 2) ||
+    !isRecord(value["tables"])
+  ) {
     throw new Error("This is not a supported Amanda backup");
   }
   const backupTables = value["tables"];
-
-  const expectedTableNames = TABLES.map((table) => table.name).sort();
+  const legacyTableNames = TABLES.filter((table) => table.name !== "local_attachments").map((table) => table.name).sort();
+  const expectedTableNames = value["formatVersion"] === 1 ? legacyTableNames : TABLES.map((table) => table.name).sort();
   const actualTableNames = Object.keys(backupTables).sort();
   if (
     expectedTableNames.length !== actualTableNames.length ||
@@ -175,14 +195,14 @@ export function parseLocalBackup(json: string): LocalBackup {
 
   const tables = {} as Record<TableName, BackupRow[]>;
   for (const table of TABLES) {
-    const rows = backupTables[table.name];
+    const rows = backupTables[table.name] ?? (table.name === "local_attachments" ? [] : undefined);
     if (!Array.isArray(rows)) throw new Error(`The ${table.name} backup data is invalid`);
     if (rows.length > 100_000) throw new Error(`The ${table.name} table contains too many rows`);
     tables[table.name] = rows.map((row, index) => validateRow(row, table, index));
   }
 
   return {
-    formatVersion: 1,
+    formatVersion: 2,
     exportedAt: typeof value["exportedAt"] === "string" ? value["exportedAt"] : "",
     tables,
   };
