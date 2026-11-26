@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Archive, ArrowLeft, FilePlus2, ImagePlus, Search, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, FilePlus2, FileText, ImagePlus, Paperclip, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { createLocalAttachment, createPastedTextAttachment, formatFileSize, type LocalAttachment } from "@/lib/local-attachments";
+import { selectRows } from "@/lib/database";
 import { executeSql, isDesktopApp } from "@/lib/database";
 import { notesQuery, workspacesQuery } from "@/lib/queries";
 
@@ -41,6 +42,9 @@ export const Route = createFileRoute("/_authenticated/_shell/notes")({
   component: NotesPage,
 });
 
+const NOTE_HTML_PREFIX = "<!--amanda-rich-note-->";
+
+type StoredAttachment = LocalAttachment & { noteId: string };
 type Note = {
   id: string;
   title: string;
@@ -64,7 +68,13 @@ function NotesPage() {
   const [draggingImages, setDraggingImages] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [noteAttachments, setNoteAttachments] = useState<StoredAttachment[]>([]);
+  const [previewAttachment, setPreviewAttachment] = useState<StoredAttachment | null>(null);
+  const [referenceKind, setReferenceKind] = useState<"image" | "doc">("doc");
   const desktop = isDesktopApp();
+  const editorRef = useRef<HTMLDivElement>(null);
+  const attachmentInput = useRef<HTMLInputElement>(null);
+  const pendingRange = useRef<Range | null>(null);
   const loadedNoteId = useRef<string | null>(null);
   const editRevision = useRef(0);
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
@@ -92,6 +102,7 @@ function NotesPage() {
       setDraftContent("");
       setDraftProjectId("none");
       setDraftImages([]);
+      setNoteAttachments([]);
       setDirty(false);
       return;
     }
@@ -103,9 +114,26 @@ function NotesPage() {
     setDraftContent(activeNote.content);
     setDraftProjectId(activeNote.project_id ?? "none");
     try { setDraftImages(JSON.parse(activeNote.images || "[]") as string[]); } catch { setDraftImages([]); }
+    void selectRows<{ id: string; name: string; mime_type: string; size_bytes: number; kind: StoredAttachment["kind"]; data_url: string | null; extracted_text: string }>(
+      "SELECT id, name, mime_type, size_bytes, kind, data_url, extracted_text FROM local_attachments WHERE note_id = $1 ORDER BY created_at ASC",
+      [activeNote.id],
+    ).then((rows) => setNoteAttachments(rows.map((row) => ({
+      id: row.id, noteId: activeNote.id, name: row.name, mimeType: row.mime_type, size: row.size_bytes,
+      kind: row.kind, dataUrl: row.data_url, extractedText: row.extracted_text,
+    })))).catch(() => toast.error("Could not load this note's attachments"));
     editRevision.current += 1;
     setDirty(false);
   }, [activeNote]);
+
+  useEffect(() => {
+    if (!activeNote || !editorRef.current) return;
+    const editor = editorRef.current;
+    if (activeNote.content.startsWith(NOTE_HTML_PREFIX)) {
+      editor.innerHTML = activeNote.content.slice(NOTE_HTML_PREFIX.length);
+    } else {
+      editor.textContent = activeNote.content;
+    }
+  }, [activeNote?.id]);
 
   useEffect(() => {
     if (!dirty || !activeNote || !desktop) return;
@@ -186,6 +214,139 @@ function NotesPage() {
     })));
     setDraftImages((current) => [...current, ...encoded]);
     markDirty();
+  }
+
+  function insertAtSavedCaret(node: Node) {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selection = window.getSelection();
+    const range = pendingRange.current ?? (selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null);
+    if (range && editor.contains(range.commonAncestorContainer)) {
+      range.deleteContents();
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      pendingRange.current = range.cloneRange();
+    } else {
+      editor.append(node);
+    }
+    editor.focus();
+    setDraftContent(NOTE_HTML_PREFIX + editor.innerHTML);
+    markDirty();
+  }
+
+  async function persistNoteAttachment(attachment: LocalAttachment) {
+    if (!activeNote) return;
+    const createdAt = new Date().toISOString();
+    await executeSql(
+      "INSERT INTO local_attachments (id, note_id, name, mime_type, kind, size_bytes, data_url, extracted_text, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+      [attachment.id, activeNote.id, attachment.name, attachment.mimeType, attachment.kind, attachment.size, attachment.dataUrl, attachment.extractedText, createdAt],
+    );
+    setNoteAttachments((current) => [...current, { ...attachment, noteId: activeNote.id }]);
+    const card = document.createElement("span");
+    card.contentEditable = "false";
+    card.dataset.amandaAttachmentId = attachment.id;
+    card.className = "mx-1 inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-2 align-middle text-sm";
+    card.textContent = `▤ ${attachment.name}`;
+    insertAtSavedCaret(card);
+  }
+
+  async function handleNoteFile(file: File) {
+    try {
+      const attachment = await createLocalAttachment(file);
+      if (attachment.kind === "image" && attachment.dataUrl) {
+        const image = document.createElement("img");
+        image.src = attachment.dataUrl;
+        image.alt = file.name || "Pasted image";
+        image.className = "my-2 mr-4 inline-block h-auto max-w-[42%] rounded-lg border border-border align-top";
+        image.style.cssFloat = "left";
+        image.style.marginRight = "1rem";
+        image.style.marginBottom = "0.75rem";
+        insertAtSavedCaret(image);
+        return;
+      }
+      await persistNoteAttachment(attachment);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add this file");
+    }
+  }
+
+  async function handlePastedText(value: string) {
+    if (!activeNote) return;
+    const attachment = createPastedTextAttachment(value);
+    try {
+      await persistNoteAttachment(attachment);
+    } catch {
+      toast.error("Could not save the pasted text block");
+    }
+  }
+
+  function handleEditorInput() {
+    const editor = editorRef.current;
+    if (!editor) return;
+    setDraftContent(NOTE_HTML_PREFIX + editor.innerHTML);
+    markDirty();
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !editor.contains(selection.anchorNode)) return;
+    const node = selection.anchorNode;
+    if (node?.nodeType !== Node.TEXT_NODE) return;
+    const beforeCaret = (node.textContent ?? "").slice(0, selection.anchorOffset);
+    const match = beforeCaret.match(/@(image|doc)$/i);
+    if (!match) return;
+    const range = selection.getRangeAt(0).cloneRange();
+    range.setStart(node, selection.anchorOffset - match[0].length);
+    range.deleteContents();
+    pendingRange.current = selection.getRangeAt(0).cloneRange();
+    setReferenceKind(match[1].toLocaleLowerCase() === "image" ? "image" : "doc");
+    window.setTimeout(() => attachmentInput.current?.click(), 0);
+  }
+
+  function handleEditorPaste(event: React.ClipboardEvent<HTMLDivElement>) {
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    if (files.length) {
+      event.preventDefault();
+      for (const file of files) void handleNoteFile(file);
+      return;
+    }
+    const pastedText = event.clipboardData.getData("text/plain");
+    if (pastedText.length > 1_800) {
+      event.preventDefault();
+      void handlePastedText(pastedText);
+      return;
+    }
+    if (event.clipboardData.getData("text/html")) {
+      event.preventDefault();
+      document.execCommand("insertText", false, pastedText);
+    }
+  }
+
+  function handleEditorClick(event: React.MouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    const card = target.closest<HTMLElement>("[data-amanda-attachment-id]");
+    if (!card) return;
+    const attachment = noteAttachments.find((item) => item.id === card.dataset.amandaAttachmentId);
+    if (attachment) setPreviewAttachment(attachment);
+  }
+
+  async function removeNoteAttachment(attachment: StoredAttachment) {
+    try {
+      await executeSql("DELETE FROM local_attachments WHERE id = $1 AND note_id = $2", [attachment.id, attachment.noteId]);
+      setNoteAttachments((current) => current.filter((item) => item.id !== attachment.id));
+      setPreviewAttachment(null);
+      const card = editorRef.current?.querySelector(`[data-amanda-attachment-id="${attachment.id}"]`);
+      card?.remove();
+      if (editorRef.current) {
+        setDraftContent(NOTE_HTML_PREFIX + editorRef.current.innerHTML);
+        markDirty();
+      }
+    } catch {
+      toast.error("Could not remove this attachment");
+    }
   }
 
   async function backToNotes() {
@@ -314,7 +475,7 @@ function NotesPage() {
               className="h-auto border-0 bg-transparent px-0 font-serif text-4xl tracking-tight shadow-none focus-visible:ring-0 sm:text-5xl"
               disabled={!desktop}
             />
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Select value={draftProjectId} onValueChange={(value) => { setDraftProjectId(value); markDirty(); }} disabled={!desktop}>
                 <SelectTrigger id="note-project" className="w-48 border-0 bg-muted/50">
                   <SelectValue placeholder="No project" />
@@ -352,14 +513,79 @@ function NotesPage() {
                 ))}
               </div>
             )}
-            <Textarea
-              id="note-content"
-              value={draftContent}
-              onChange={(event) => { setDraftContent(event.target.value); markDirty(); }}
-              placeholder="Start writing…"
-              className="min-h-[42vh] resize-y border-0 bg-transparent px-0 text-base leading-7 shadow-none focus-visible:ring-0"
+            <input
+              ref={attachmentInput}
+              type="file"
+              accept={referenceKind === "image" ? "image/*" : ".pdf,.docx,.txt,.md,.csv,.json,.xml,.html,.yaml,.yml"}
+              className="sr-only"
               disabled={!desktop}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.currentTarget.value = "";
+                if (file) void handleNoteFile(file);
+              }}
             />
+            <div
+              ref={editorRef}
+              id="note-content"
+              role="textbox"
+              aria-label="Note content"
+              aria-multiline="true"
+              contentEditable={desktop}
+              suppressContentEditableWarning
+              data-placeholder="Start writing…"
+              onInput={handleEditorInput}
+              onPaste={handleEditorPaste}
+              onClick={handleEditorClick}
+              className="min-h-[42vh] whitespace-pre-wrap break-words rounded-md px-0 py-1 text-base leading-7 outline-none empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)] [&_img]:max-h-[32rem]"
+            />
+            {noteAttachments.length > 0 && (
+              <div className="mt-5 flex flex-col gap-2" aria-label="Note attachments">
+                {noteAttachments.map((attachment) => (
+                  <button key={attachment.id} type="button" onClick={() => setPreviewAttachment(attachment)} className="flex w-full items-center gap-3 rounded-lg border border-border bg-muted/30 p-3 text-left transition-colors hover:bg-muted/60">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><FileText className="size-4 text-muted-foreground" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{attachment.name}</span>
+                      <span className="block text-xs text-muted-foreground">{attachment.kind === "pasted-text" ? `${attachment.extractedText.split(/\\r?\\n/).length} lines · ` : ""}{formatFileSize(attachment.size)} · Stored on this device</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">Preview</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                const selection = window.getSelection();
+                pendingRange.current = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+                setReferenceKind("doc");
+                attachmentInput.current?.click();
+              }} disabled={!desktop}>
+                <Paperclip data-icon="inline-start" /> Add reference
+              </Button>
+              <span className="text-xs text-muted-foreground">Tip: type @image or @doc to insert at the cursor. Paste long text to create a preview card.</span>
+            </div>
+            {previewAttachment && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewAttachment(null); }}>
+                <section role="dialog" aria-modal="true" aria-labelledby="note-attachment-title" className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+                  <header className="flex items-center gap-3 border-b border-border p-4">
+                    <FileText className="size-5 text-muted-foreground" />
+                    <h3 id="note-attachment-title" className="min-w-0 flex-1 truncate text-sm font-semibold">{previewAttachment.name}</h3>
+                    <Button type="button" variant="ghost" size="icon" aria-label="Close preview" onClick={() => setPreviewAttachment(null)}><X /></Button>
+                  </header>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                    {previewAttachment.kind === "image" && previewAttachment.dataUrl ? (
+                      <img src={previewAttachment.dataUrl} alt={previewAttachment.name} className="mx-auto max-h-[65vh] max-w-full rounded-lg object-contain" />
+                    ) : (
+                      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">{previewAttachment.extractedText || "No text preview is available for this file."}</pre>
+                    )}
+                  </div>
+                  <footer className="flex justify-end gap-2 border-t border-border p-3">
+                    <Button type="button" variant="outline" onClick={() => setPreviewAttachment(null)}>Close</Button>
+                    <Button type="button" variant="destructive" onClick={() => void removeNoteAttachment(previewAttachment)}>Remove attachment</Button>
+                  </footer>
+                </section>
+              </div>
+            )}
           </div>
 
           <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -396,7 +622,7 @@ function NotesPage() {
                   className="h-44 overflow-hidden rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
                 >
                   <span className="block truncate text-base font-medium">{note.title || "Untitled note"}</span>
-                  <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{note.content || "No text yet"}</span>
+                  <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{note.content.replace(/<!--amanda-rich-note-->/, "").replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim() || "No text yet"}</span>
                   <span className="mt-4 block text-xs text-muted-foreground">{new Date(note.updated_at).toLocaleDateString()}</span>
                 </button>
               ))}
