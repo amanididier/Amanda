@@ -77,6 +77,7 @@ function SettingsPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [guideTopic, setGuideTopic] = useState("getting-started");
   const [guideImages, setGuideImages] = useState<string[]>([]);
+  const [guideImagesLoaded, setGuideImagesLoaded] = useState(false);
   const desktop = isDesktopApp();
   const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,17 +109,20 @@ function SettingsPage() {
       if (saved) setGuideImages(JSON.parse(saved) as string[]);
     } catch {
       setGuideImages([]);
+    } finally {
+      setGuideImagesLoaded(true);
     }
   }, []);
 
   useEffect(() => {
+    if (!guideImagesLoaded) return;
     try {
       if (guideImages.length) window.localStorage.setItem("amanda-guide-reference-images", JSON.stringify(guideImages));
       else window.localStorage.removeItem("amanda-guide-reference-images");
     } catch {
       toast.error("Guide images could not be saved. Try smaller images.");
     }
-  }, [guideImages]);
+  }, [guideImages, guideImagesLoaded]);
 
   useEffect(() => {
     if (!desktop) return;
