@@ -358,12 +358,16 @@ function NotesPage() {
       .filter((file): file is File => Boolean(file));
     if (files.length) {
       event.preventDefault();
+      const selection = window.getSelection();
+      pendingRange.current = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
       for (const file of files) void handleNoteFile(file);
       return;
     }
     const pastedText = event.clipboardData.getData("text/plain");
     if (pastedText.length > 1_800) {
       event.preventDefault();
+      const selection = window.getSelection();
+      pendingRange.current = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
       void handlePastedText(pastedText);
       return;
     }
