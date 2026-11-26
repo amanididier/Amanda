@@ -631,7 +631,8 @@ function createProjectContext(
       .map((task) => ({ id: task.id, title: task.title.slice(0, 120) })),
     relevantNotes: relatedContext.notes.map((note) => ({
       title: note.title.slice(0, 120),
-      content: note.content.slice(0, 300),
+      content: note.content.slice(0, 1_800),
+      attachedDocuments: note.attachmentText.slice(0, 6_000),
     })),
     relevantMemories: relatedContext.memories.map((memory) => ({
       category: memory.category.slice(0, 80),
