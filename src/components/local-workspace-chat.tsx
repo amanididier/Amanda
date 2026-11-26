@@ -459,23 +459,25 @@ export function LocalWorkspaceChat({
   return (
     <section
       className={workspaceLayout ? landing && messages.length === 0 && !streamedResponse ? "flex h-full min-h-0 flex-col justify-center" : "flex h-full min-h-0 flex-col" : landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 flex min-h-0 flex-col rounded-lg border border-border"}
-      aria-labelledby={!workspaceLayout ? "workspace-chat-heading" : undefined}
+      aria-labelledby={!workspaceLayout && !landing ? "workspace-chat-heading" : undefined}
       aria-label={workspaceLayout ? "Workspace chat" : undefined}
     >
       {!workspaceLayout && (!landing || messages.length > 0 || streamedResponse) && (
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
-        <div>
-          <h2 id="workspace-chat-heading" className="text-sm font-semibold">
-            Conversation with Amanda
-          </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {modelReady
-              ? workspace.is_system === 1
-                ? "This private conversation runs locally and retrieves only relevant saved context."
-                : workspace.workspace_type === "research" ? "This conversation uses the local model and this research workspace’s saved context." : "This conversation uses the local model and this project’s saved context."
-              : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Amanda will start the local model when you send a message."}
-          </p>
-        </div>
+        {!landing && (
+          <div>
+            <h2 id="workspace-chat-heading" className="text-sm font-semibold">
+              Conversation with Amanda
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {modelReady
+                ? workspace.is_system === 1
+                  ? "This private conversation runs locally and retrieves only relevant saved context."
+                  : workspace.workspace_type === "research" ? "This conversation uses the local model and this research workspace’s saved context." : "This conversation uses the local model and this project’s saved context."
+                : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Amanda will start the local model when you send a message."}
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {conversations.length > 1 && conversation && (
             <Select value={conversation.id} onValueChange={setActiveConversationId}>
