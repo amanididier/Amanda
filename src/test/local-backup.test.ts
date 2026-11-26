@@ -36,6 +36,7 @@ describe("local backup validation", () => {
   it("accepts version 2 backups containing note and conversation attachments", () => {
     const tables = {
       ...emptyBackup(),
+      daily_notes: [{ id: "note-1", images: '["data:image/png;base64,AA=="]' }],
       local_attachments: [
         {
           id: "attachment-1",
