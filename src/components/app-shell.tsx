@@ -144,7 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
-          <span className="font-serif text-lg text-foreground">Amanda</span>
+          <div className="inline-flex items-center gap-2"><img src="/favicon.ico" alt="" className="size-6 rounded bg-white p-0.5" /><span className="font-serif text-lg text-foreground">Amanda</span></div>
         </div>
 
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</main>
@@ -211,11 +211,14 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Wordmark */}
       <div className={cn("flex items-center gap-2 px-3 py-3", collapsed && "justify-center px-0")}>
-        {!collapsed && (
-          <Link to="/" className="font-serif text-xl tracking-tight text-foreground">
-            Amanda
-          </Link>
-        )}
+        <Link
+          to="/"
+          className={cn("inline-flex items-center gap-2 font-serif text-xl tracking-tight text-foreground", collapsed && "justify-center")}
+          aria-label="Amanda home"
+        >
+          <img src="/favicon.ico" alt="" className="size-6 rounded bg-white p-0.5" />
+          {!collapsed && <span>Amanda</span>}
+        </Link>
         {onToggleCollapse && (
           <Button
             variant="ghost"
