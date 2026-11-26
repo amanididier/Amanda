@@ -213,7 +213,8 @@ function NotesPage() {
       dataUrl,
       extractedText: "",
     }));
-    const attachmentsForPrompt = [...documentAttachments, ...imageAttachments];
+    const noteTextAttachment = noteText ? createPastedTextAttachment(`# ${noteTitle}\n\n${noteText}`) : null;
+    const attachmentsForPrompt = [...(noteTextAttachment ? [noteTextAttachment] : []), ...documentAttachments, ...imageAttachments];
     if (!noteText && attachmentsForPrompt.length === 0) {
       toast.error("Add some note content or an image first");
       return;
@@ -239,9 +240,8 @@ function NotesPage() {
 
       const attachmentNames = attachmentsForPrompt.map((attachment) => attachment.name);
       const prompt = [
-        `Please review my Daily Note and help me with it. Treat this as my full request, and use the attached images and documents as part of the context.`,
+        `Please review my Daily Note and help me with it. The note text, images, and documents are attached as context.`,
         `Note: ${noteTitle}`,
-        noteText,
         attachmentNames.length ? `Attached references: ${attachmentNames.join(", ")}. Please inspect the images and read the documents.` : "",
       ].filter(Boolean).join("\n\n");
       setPendingWorkspaceMessage(prompt, attachmentsForPrompt);
