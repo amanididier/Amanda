@@ -229,23 +229,26 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Wordmark */}
+      {/* Wordmark / single expand control when collapsed */}
       <div className={cn("flex items-center gap-2 px-3 py-3", collapsed && "justify-center px-0")}>
-        <Link
-          to="/"
-          className={cn("inline-flex items-center gap-2 font-serif text-xl tracking-tight text-foreground", collapsed && "justify-center")}
-          aria-label="Amanda home"
-        >
-          <img src="/amanda-mark.svg" alt="" className="size-6 rounded-md" />
-          {!collapsed && <span>Amanda</span>}
-        </Link>
+        {!collapsed && (
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 font-serif text-xl tracking-tight text-foreground"
+            aria-label="Amanda home"
+          >
+            <img src="/amanda-mark.svg" alt="" className="size-6 rounded-md" />
+            <span>Amanda</span>
+          </Link>
+        )}
         {onToggleCollapse && (
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-7 w-7", !collapsed && "ml-auto")}
+            className={cn("h-7 w-7 shrink-0", collapsed ? "mx-auto" : "ml-auto")}
             onClick={onToggleCollapse}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? (
               <PanelLeftOpen className="h-4 w-4" />
