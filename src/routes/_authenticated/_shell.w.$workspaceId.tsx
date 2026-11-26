@@ -18,7 +18,6 @@ import { LocalRoadmapBoard } from "@/components/local-roadmap-board";
 import { LocalWorkspaceChat } from "@/components/local-workspace-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { executeSql, isDesktopApp } from "@/lib/database";
 import { workspaceQuery, workspaceTasksQuery } from "@/lib/queries";
 
@@ -57,7 +56,6 @@ function WorkspacePage() {
   const { data: tasks = [] } = useQuery(workspaceTasksQuery(workspaceId));
   const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "roadmap">("chat");
   const [taskTitle, setTaskTitle] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceTask | null>(null);
   const desktop = isDesktopApp();
 
@@ -78,7 +76,6 @@ function WorkspacePage() {
     );
   }
 
-  const completedCount = tasks.filter((task) => task.status === "done").length;
 
   async function addTask() {
     const title = taskTitle.trim();
@@ -97,10 +94,9 @@ function WorkspacePage() {
     try {
       await executeSql(
         "INSERT INTO tasks (id, project_id, title, status, due_date, position, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-        [id, workspaceId, title, "todo", taskDueDate || null, position, now, now],
+        [id, workspaceId, title, "todo", null, position, now, now],
       );
       setTaskTitle("");
-      setTaskDueDate("");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Task added");
     } catch {
@@ -160,114 +156,88 @@ function WorkspacePage() {
       </nav>
 
       {activeTab === "tasks" && (
-        <div className="min-h-0 flex-1 overflow-y-auto py-5">
-      <section className="mt-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <ListTodo aria-hidden="true" className="size-5 text-muted-foreground" />
-              Tasks
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {completedCount} of {tasks.length} complete
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-end gap-2">
-          <div className="min-w-48 flex-1">
-            <Label htmlFor="new-task-title">New task</Label>
-            <Input
-              id="new-task-title"
-              value={taskTitle}
-              onChange={(event) => setTaskTitle(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                if (event.nativeEvent.isComposing || event.keyCode === 229) {
+        <div className="min-h-0 flex-1 overflow-y-auto pt-4">
+          <div className="mx-auto w-full max-w-3xl">
+            <div className="mb-5 flex items-center justify-end gap-2">
+              <Input
+                id="new-task-title"
+                value={taskTitle}
+                onChange={(event) => setTaskTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                    event.preventDefault();
+                    return;
+                  }
                   event.preventDefault();
-                  return;
-                }
-                event.preventDefault();
-                void addTask();
-              }}
-              placeholder="What needs to get done?"
-              disabled={!desktop}
-            />
-          </div>
-          <div className="w-40">
-            <Label htmlFor="new-task-due">Due date</Label>
-            <Input
-              id="new-task-due"
-              type="date"
-              value={taskDueDate}
-              onChange={(event) => setTaskDueDate(event.target.value)}
-              disabled={!desktop}
-            />
-          </div>
-          <Button onClick={() => void addTask()} disabled={!desktop}>
-            <Plus data-icon="inline-start" /> Add task
-          </Button>
-        </div>
-
-        {!desktop && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Workspace tasks are stored locally. Open the installed Amanda desktop app to add or update
-            them.
-          </p>
-        )}
-
-        <div className="mt-4 divide-y divide-border rounded-lg border border-border">
-          {tasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-3 px-3 py-3 sm:px-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                aria-label={
-                  task.status === "done"
-                    ? `Mark ${task.title} incomplete`
-                    : `Mark ${task.title} complete`
-                }
-                aria-pressed={task.status === "done"}
+                  void addTask();
+                }}
+                placeholder="Add a task…"
+                className="w-full max-w-xs"
                 disabled={!desktop}
-                onClick={() => void toggleTask(task)}
-              >
-                {task.status === "done" ? (
-                  <Check aria-hidden="true" />
-                ) : (
-                  <Circle aria-hidden="true" className="text-muted-foreground" />
-                )}
-              </Button>
-              <div className="min-w-0 flex-1">
-                <p
-                  className={`text-sm ${task.status === "done" ? "text-muted-foreground line-through" : "font-medium"}`}
-                >
-                  {task.title}
-                </p>
-                {task.due_date && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Due {new Date(`${task.due_date}T00:00:00`).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Delete ${task.title}`}
-                disabled={!desktop}
-                onClick={() => setDeleteTarget(task)}
-              >
-                <Trash2 aria-hidden="true" />
+              />
+              <Button onClick={() => void addTask()} disabled={!desktop || !taskTitle.trim()}>
+                <Plus data-icon="inline-start" /> Add task
               </Button>
             </div>
-          ))}
-          {tasks.length === 0 && (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No tasks yet. Add one above to start making progress.
-            </p>
-          )}
-        </div>
-      </section>
+
+            {tasks.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">There are no tasks yet.</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {tasks.map((task) => (
+                  <div key={task.id} className="flex items-start gap-3 py-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mt-0.5 shrink-0"
+                      aria-label={
+                        task.status === "done"
+                          ? `Mark ${task.title} incomplete`
+                          : `Mark ${task.title} complete`
+                      }
+                      aria-pressed={task.status === "done"}
+                      disabled={!desktop}
+                      onClick={() => void toggleTask(task)}
+                    >
+                      {task.status === "done" ? (
+                        <Check aria-hidden="true" />
+                      ) : (
+                        <Circle aria-hidden="true" className="text-muted-foreground" />
+                      )}
+                    </Button>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`break-words whitespace-normal text-sm ${task.status === "done" ? "text-muted-foreground line-through" : "font-medium"}`}
+                      >
+                        {task.title}
+                      </p>
+                      {task.description?.trim() && (
+                        <p className="mt-1 break-words whitespace-normal text-sm text-muted-foreground">
+                          {task.description}
+                        </p>
+                      )}
+                      {task.due_date && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Due {new Date(`${task.due_date}T00:00:00`).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      aria-label={`Delete ${task.title}`}
+                      disabled={!desktop}
+                      onClick={() => setDeleteTarget(task)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
