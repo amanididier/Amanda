@@ -38,6 +38,7 @@ type LocalMessage = {
   conversation_id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  metadata: string;
   created_at: string;
 };
 
