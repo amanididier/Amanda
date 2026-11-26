@@ -156,9 +156,9 @@ export function attachmentPromptContext(attachments: LocalAttachment[]) {
   const textAttachments = attachments.filter((attachment) => attachment.extractedText);
   if (!textAttachments.length) return "";
   return textAttachments
-    .map((attachment) => `<attached_file name="${attachment.name.replace(/[<>]/g, "")}">\n${attachment.extractedText.slice(0, MAX_EXTRACTED_CHARS)}\n</attached_file>`)
+    .map((attachment) => `<attached_file name="${attachment.name.replace(/[<>"]/g, "")}">\n${attachment.extractedText.slice(0, MAX_EXTRACTED_CHARS)}\n</attached_file>`)
     .join("\n\n")
-    .slice(0, 48_000);
+    .slice(0, 12_000);
 }
 
 export function formatFileSize(size: number) {
