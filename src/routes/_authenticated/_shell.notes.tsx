@@ -199,6 +199,7 @@ function NotesPage() {
           project_id: null,
           updated_at: new Date().toISOString(),
           images: "[]",
+          attachment_text: "",
         },
         ...current,
       ]);
