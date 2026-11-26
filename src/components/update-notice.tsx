@@ -1,4 +1,3 @@
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { Download, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -108,9 +107,7 @@ export function UpdateNotice() {
           setPhase("installing");
         }
       }, { restartAfterInstall: true });
-      // On Windows the NSIS updater launches the installer and restarts Amanda.
-      // This fallback covers platforms where the updater returns without restarting.
-      await relaunch();
+      // The Windows NSIS updater launches the installer and restarts Amanda itself.
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("Amanda update installation failed", error);
