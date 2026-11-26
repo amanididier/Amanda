@@ -76,7 +76,7 @@ function SettingsPage() {
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [guideTopic, setGuideTopic] = useState("getting-started");
-  const [guideImages, setGuideImages] = useState<string[]>([]);
+  const [guideImages, setGuideImages] = useState<Record<string, string[]>>({});
   const [guideImagesLoaded, setGuideImagesLoaded] = useState(false);
   const desktop = isDesktopApp();
   const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
@@ -106,7 +106,7 @@ function SettingsPage() {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("amanda-guide-reference-images");
-      if (saved) setGuideImages(JSON.parse(saved) as string[]);
+      if (saved) setGuideImages(JSON.parse(saved) as Record<string, string[]>);
     } catch {
       setGuideImages([]);
     } finally {
@@ -117,7 +117,7 @@ function SettingsPage() {
   useEffect(() => {
     if (!guideImagesLoaded) return;
     try {
-      if (guideImages.length) window.localStorage.setItem("amanda-guide-reference-images", JSON.stringify(guideImages));
+      if (Object.keys(guideImages).length) window.localStorage.setItem("amanda-guide-reference-images", JSON.stringify(guideImages));
       else window.localStorage.removeItem("amanda-guide-reference-images");
     } catch {
       toast.error("Guide images could not be saved. Try smaller images.");
@@ -621,6 +621,7 @@ function SettingsPage() {
             ))}
           </nav>
           <article className="min-w-0 rounded-xl border border-border bg-card p-5 sm:p-6">
+            {(() => { const currentGuideImages = guideImages[guideTopic] ?? []; return null; })()}
             {(() => {
               const articles = [
                 { id: "getting-started", title: "Getting started", intro: "Amanda keeps your work on this device and gives each project or research topic its own focused workspace.", steps: ["Open Settings and choose Local AI model.", "Download or select a compatible GGUF model, then choose Load model.", "Wait until the model is shown as Loaded.", "Return to Home and start a conversation with Amanda.", "When you are ready to organise the work, create a workspace and choose Project or Research."] },
@@ -645,22 +646,22 @@ function SettingsPage() {
             })()}
             <div className="mt-8 border-t border-border pt-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><h3 className="text-sm font-semibold">Reference images</h3><p className="mt-1 text-xs text-muted-foreground">Add screenshots that help explain a page or a step. Images are saved in this browser profile.</p></div>
+                <div><h3 className="text-sm font-semibold">Reference images</h3><p className="mt-1 text-xs text-muted-foreground">Add screenshots for this guide section. Images are saved in this browser profile.</p></div>
                 <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-accent">Add images
                   <input type="file" accept="image/*" multiple className="sr-only" onChange={(event) => {
                     const files = Array.from(event.target.files ?? []);
                     event.currentTarget.value = "";
-                    if (files.length + guideImages.length > 4 || files.some((file) => file.size > 1_500_000)) { toast.error("Add up to 4 images, each smaller than 1.5 MB."); return; }
+                    if (files.length + currentGuideImages.length > 4 || files.some((file) => file.size > 750_000)) { toast.error("Add up to 4 images for this section, each smaller than 750 KB."); return; }
                     void Promise.all(files.map((file) => new Promise<string>((resolve, reject) => {
                       const reader = new FileReader();
                       reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read image"));
                       reader.onerror = () => reject(new Error("Could not read image"));
                       reader.readAsDataURL(file);
-                    }))).then((images) => setGuideImages((current) => [...current, ...images])).catch(() => toast.error("Could not add those images."));
+                    }))).then((images) => setGuideImages((current) => ({ ...current, [guideTopic]: [...(current[guideTopic] ?? []), ...images] }))).catch(() => toast.error("Could not add those images."));
                   }} />
                 </label>
               </div>
-              {guideImages.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{guideImages.map((image, index) => <div key={index} className="group relative overflow-hidden rounded-lg border border-border"><img src={image} alt={`Amanda guide reference ${index + 1}`} className="max-h-48 w-full object-contain" /><button type="button" onClick={() => setGuideImages((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="absolute right-2 top-2 rounded-md bg-background/90 px-2 py-1 text-xs opacity-0 shadow group-hover:opacity-100 focus:opacity-100">Remove</button></div>)}</div>}
+              {currentGuideImages.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{currentGuideImages.map((image, index) => <div key={index} className="group relative overflow-hidden rounded-lg border border-border"><img src={image} alt={`Amanda guide reference ${index + 1}`} className="max-h-48 w-full object-contain" /><button type="button" onClick={() => setGuideImages((current) => ({ ...current, [guideTopic]: currentGuideImages.filter((_, itemIndex) => itemIndex !== index) }))} className="absolute right-2 top-2 rounded-md bg-background/90 px-2 py-1 text-xs opacity-0 shadow group-hover:opacity-100 focus:opacity-100">Remove</button></div>)}</div>}
             </div>
           </article>
         </div>
