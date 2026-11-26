@@ -280,6 +280,7 @@ function NotesPage() {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.setAttribute("aria-label", `Remove ${attachment.name}`);
+    removeButton.dataset.amandaRemoveAttachment = attachment.id;
     removeButton.className = "rounded-md px-2 py-1 text-muted-foreground hover:bg-background";
     removeButton.textContent = "×";
     removeButton.addEventListener("click", (event) => {
@@ -370,6 +371,13 @@ function NotesPage() {
 
   function handleEditorClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
+    const removeButton = target.closest<HTMLElement>("[data-amanda-remove-attachment]");
+    if (removeButton) {
+      event.preventDefault();
+      const attachment = noteAttachments.find((item) => item.id === removeButton.dataset.amandaRemoveAttachment);
+      if (attachment) void removeNoteAttachment(attachment);
+      return;
+    }
     const card = target.closest<HTMLElement>("[data-amanda-attachment-id]");
     if (!card) return;
     const attachment = noteAttachments.find((item) => item.id === card.dataset.amandaAttachmentId);
