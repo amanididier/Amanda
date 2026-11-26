@@ -71,7 +71,8 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
 
     // Firecrawl groups standard search results under data.web. Some responses that
     // include scraped page content use data as an array, so accept both shapes.
-    let data = payload.get("data").unwrap_or(&Value::Null);
+    let empty_data = Value::Null;
+    let data = payload.get("data").unwrap_or(&empty_data);
     let results = data
         .get("web")
         .and_then(Value::as_array)
