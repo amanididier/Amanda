@@ -734,7 +734,7 @@ function getMessageAttachmentLabels(metadata?: string) {
 }
 
 function shouldSearchWeb(query: string) {
-  return /\b(search|look up|find sources|research online|on the web|internet|latest|newest|recent|current|currently|right now|today|tonight|yesterday|this week|this month|this year|as of|breaking|news|happening|what happened|updates?|new release|release date|202[5-9]|price|pricing|exchange rate|weather|president|prime minister|ceo|who won|results)\b/i.test(query);
+  return /\b(search|web search|search the web|search online|look up|look online|find online|find sources|sources|citations|references|evidence|research|investigate|verify|fact[- ]check|on the web|internet|latest|newest|recent|recently|current|currently|right now|today|tonight|yesterday|this week|this month|this year|as of|breaking|news|happening|what happened|updates?|new release|release date|202[5-9]|price|pricing|exchange rate|weather|president|prime minister|ceo|who won|results)\b/i.test(query);
 }
 
 function createProjectContext(
