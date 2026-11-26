@@ -15,12 +15,12 @@ Never commit the private key or paste it into source code, issues, pull requests
 
 The app version currently lives in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml. They must match exactly. The release workflow rejects a tag that does not match that version.
 
-The repository currently has a v0.1.3 GitHub Release with no assets. After PR #11 and the updater PR are merged, run the Windows installer workflow manually from main with release_tag set to v0.1.3. This populates that existing release with the signed installer, signature, and latest.json. It is the signed baseline for the already-installed 0.1.3 app; it will not update that same version because the version number is equal. The next release (for example, 0.1.4) is the first one that those installations can detect and install in-app.
+The repository has an empty v0.1.3 GitHub Release. The installed CI build is version 0.1.3 and already contains the updater foundation, so do not try to update it with another v0.1.3 build. This branch advances both app version files to 0.1.4. After PR #11 and this updater PR are merged, publish v0.1.4 from main. The installed 0.1.3 app can detect that higher version using its existing updater code, download the signed package, and then receive the improved updater experience. The empty v0.1.3 release can be left as-is.
 
 ## Publishing each future update
 
 1. Finish and merge the intended code changes.
-2. Increase the version in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml (for example, 0.1.3 → 0.1.4).
+2. Increase the version in both src-tauri/tauri.conf.json and src-tauri/Cargo.toml (for the first updater rollout this branch already sets 0.1.4; future releases should increment from there).
 3. Commit and push the version change to the release branch.
 4. Create and push the matching tag, for example v0.1.4.
 5. The Windows installer GitHub Actions workflow builds the NSIS installer and signed updater artifact, then publishes the GitHub Release and latest.json.
