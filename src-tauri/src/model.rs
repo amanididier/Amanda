@@ -7,6 +7,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     thread,
+    net::TcpListener,
     time::{Duration, Instant},
 };
 
@@ -20,7 +21,6 @@ const MODEL_REVISION: &str = "7d26695454df6de5fbcce2e58681e62dae06ce43";
 const MODEL_FILENAME: &str = "Qwen_Qwen3.5-2B-Q4_K_M.gguf";
 const MODEL_SHA256: &str = "57a1085840f497d764a7fc5d346922dbde961efb54cc792ea81d694fd846a1d8";
 const MODEL_SIZE: u64 = 1_396_198_496;
-const SERVER_PORT: u16 = 15_789;
 const CONTEXT_SIZE: &str = "4096";
 const CPU_THREADS: &str = "2";
 
@@ -30,6 +30,7 @@ pub struct ModelRuntime {
     cancel_download: Arc<AtomicBool>,
     server: Arc<Mutex<Option<Child>>>,
     api_key: Arc<Mutex<Option<String>>>,
+    server_port: Arc<Mutex<Option<u16>>>,
 }
 
 
@@ -198,6 +199,9 @@ fn server_is_running(runtime: &ModelRuntime) -> Result<bool, String> {
             *server = None;
             if let Ok(mut api_key) = runtime.api_key.lock() {
                 *api_key = None;
+            }
+            if let Ok(mut server_port) = runtime.server_port.lock() {
+                *server_port = None;
             }
             Ok(false)
         }
@@ -413,8 +417,13 @@ fn start_local_model_blocking(
             .map_err(|_| "The local model credentials are unavailable".to_string())?
             .clone()
             .ok_or_else(|| "The running model session could not be verified".to_string())?;
+        let port = runtime
+            .server_port
+            .lock()
+            .map_err(|_| "The local model port is unavailable".to_string())?
+            .ok_or_else(|| "The running model port could not be verified".to_string())?;
         return Ok(ModelConnection {
-            base_url: format!("http://127.0.0.1:{SERVER_PORT}"),
+            base_url: format!("http://127.0.0.1:{port}"),
             api_key,
         });
     }
@@ -434,6 +443,12 @@ fn start_local_model_blocking(
         );
     }
     let server_path = runtime_path(app)?;
+    // Avoid stale processes on a fixed port: each model process gets its own loopback port.
+    let port_listener = TcpListener::bind(("127.0.0.1", 0))
+        .map_err(|error| format!("Could not reserve a local model port: {error}"))?;
+    let server_port = port_listener.local_addr()
+        .map_err(|error| format!("Could not read the local model port: {error}"))?.port();
+    drop(port_listener);
     let api_key = Uuid::new_v4().simple().to_string();
     // Keep the per-launch credential out of command-line arguments and temporary files.
     // llama.cpp b9222 reads LLAMA_API_KEY through its common argument parser.
@@ -455,7 +470,7 @@ fn start_local_model_blocking(
         .arg("--host")
         .arg("127.0.0.1")
         .arg("--port")
-        .arg(SERVER_PORT.to_string())
+        .arg(server_port.to_string())
         .args([
             "--ctx-size",
             CONTEXT_SIZE,
@@ -492,7 +507,8 @@ fn start_local_model_blocking(
         .timeout(Duration::from_secs(2))
         .build()
         .map_err(|error| format!("Could not check local model readiness: {error}"))?;
-    let health_url = format!("http://127.0.0.1:{SERVER_PORT}/health");
+    let base_url = format!("http://127.0.0.1:{server_port}");
+    let health_url = format!("{base_url}/health");
     let deadline = Instant::now() + Duration::from_secs(180);
 
     loop {
@@ -524,7 +540,7 @@ fn start_local_model_blocking(
         {
             // /props is deliberately not a public endpoint in llama.cpp b9222.
             // First prove authentication is actually enabled, then prove this key is accepted.
-            let props_url = format!("http://127.0.0.1:{SERVER_PORT}/props");
+            let props_url = format!("{base_url}/props");
             let unauthenticated_response = match client.get(&props_url).send() {
                 Ok(response) => response,
                 Err(error) => {
@@ -579,10 +595,12 @@ fn start_local_model_blocking(
                 .lock()
                 .map_err(|_| "The local model credentials are unavailable".to_string())? =
                 Some(api_key.clone());
-            return Ok(ModelConnection {
-                base_url: format!("http://127.0.0.1:{SERVER_PORT}"),
-                api_key,
-            });
+            *runtime
+                .server_port
+                .lock()
+                .map_err(|_| "The local model port is unavailable".to_string())? =
+                Some(server_port);
+            return Ok(ModelConnection { base_url, api_key });
         }
         if Instant::now() >= deadline {
             let _ = child.kill();
@@ -689,6 +707,9 @@ fn stop_server(runtime: &ModelRuntime) -> Result<(), String> {
     }
     if let Ok(mut api_key) = runtime.api_key.lock() {
         *api_key = None;
+    }
+    if let Ok(mut server_port) = runtime.server_port.lock() {
+        *server_port = None;
     }
     Ok(())
 }
