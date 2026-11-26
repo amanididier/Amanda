@@ -17,6 +17,14 @@ import {
 import { LocalRoadmapBoard } from "@/components/local-roadmap-board";
 import { LocalWorkspaceChat } from "@/components/local-workspace-chat";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { executeSql, isDesktopApp } from "@/lib/database";
 import { workspaceQuery, workspaceTasksQuery } from "@/lib/queries";
@@ -56,6 +64,7 @@ function WorkspacePage() {
   const { data: tasks = [] } = useQuery(workspaceTasksQuery(workspaceId));
   const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "roadmap">("chat");
   const [taskTitle, setTaskTitle] = useState("");
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceTask | null>(null);
   const desktop = isDesktopApp();
 
@@ -97,6 +106,7 @@ function WorkspacePage() {
         [id, workspaceId, title, "todo", null, position, now, now],
       );
       setTaskTitle("");
+      setAddTaskOpen(false);
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Task added");
     } catch {
@@ -158,25 +168,8 @@ function WorkspacePage() {
       {activeTab === "tasks" && (
         <div className="min-h-0 flex-1 overflow-y-auto pt-4">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="mb-5 flex items-center justify-end gap-2">
-              <Input
-                id="new-task-title"
-                value={taskTitle}
-                onChange={(event) => setTaskTitle(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") return;
-                  if (event.nativeEvent.isComposing || event.keyCode === 229) {
-                    event.preventDefault();
-                    return;
-                  }
-                  event.preventDefault();
-                  void addTask();
-                }}
-                placeholder="Add a task…"
-                className="w-full max-w-xs"
-                disabled={!desktop}
-              />
-              <Button onClick={() => void addTask()} disabled={!desktop || !taskTitle.trim()}>
+            <div className="mb-5 flex items-center justify-end">
+              <Button onClick={() => setAddTaskOpen(true)} disabled={!desktop}>
                 <Plus data-icon="inline-start" /> Add task
               </Button>
             </div>
@@ -226,7 +219,7 @@ function WorkspacePage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="shrink-0"
+                      className="ml-2 mt-0.5 h-8 w-8 min-w-8 max-w-8 shrink-0 self-start px-0"
                       aria-label={`Delete ${task.title}`}
                       disabled={!desktop}
                       onClick={() => setDeleteTarget(task)}
@@ -241,6 +234,36 @@ function WorkspacePage() {
         </div>
       )}
 
+      <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a task</DialogTitle>
+            <DialogDescription>Add a clear next action to this project. You can add more details later.</DialogDescription>
+          </DialogHeader>
+          <Input
+            id="new-task-title"
+            value={taskTitle}
+            onChange={(event) => setTaskTitle(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                event.preventDefault();
+                return;
+              }
+              event.preventDefault();
+              void addTask();
+            }}
+            placeholder="What needs to be done?"
+            autoFocus
+            disabled={!desktop}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddTaskOpen(false)}>Cancel</Button>
+            <Button onClick={() => void addTask()} disabled={!desktop || !taskTitle.trim()}>Add task</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {activeTab === "roadmap" && (
         <div className="min-h-0 flex-1 overflow-y-auto py-5">
           {workspace.workspace_type === "project" ? <LocalRoadmapBoard workspaceId={workspace.id} /> : <p className="py-10 text-center text-sm text-muted-foreground">Roadmaps are available in project workspaces.</p>}
@@ -249,7 +272,13 @@ function WorkspacePage() {
 
       {activeTab === "chat" && (
         <div className="min-h-0 flex-1 overflow-hidden pt-2">
-          <LocalWorkspaceChat workspace={workspace} tasks={tasks} landing workspaceLayout />
+          <LocalWorkspaceChat
+            workspace={workspace}
+            tasks={tasks}
+            landing
+            workspaceLayout
+            onRoadmapSaved={() => setActiveTab("roadmap")}
+          />
         </div>
       )}
 
