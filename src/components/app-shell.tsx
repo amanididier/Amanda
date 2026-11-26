@@ -33,7 +33,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -134,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile top bar + drawer */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+        <div className="flex items-center gap-2 border-b border-border bg-background px-3 py-2 md:hidden">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Open navigation">
@@ -145,7 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
-          <span className="font-serif text-lg">Amanda</span>
+          <div className="inline-flex items-center gap-2"><img src="/favicon.ico" alt="" className="size-6 rounded bg-white p-0.5" /><span className="font-serif text-lg text-foreground">Amanda</span></div>
         </div>
 
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">{children}</main>
@@ -212,11 +211,14 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Wordmark */}
       <div className={cn("flex items-center gap-2 px-3 py-3", collapsed && "justify-center px-0")}>
-        {!collapsed && (
-          <Link to="/" className="font-serif text-xl tracking-tight">
-            Amanda
-          </Link>
-        )}
+        <Link
+          to="/"
+          className={cn("inline-flex items-center gap-2 font-serif text-xl tracking-tight text-foreground", collapsed && "justify-center")}
+          aria-label="Amanda home"
+        >
+          <img src="/favicon.ico" alt="" className="size-6 rounded bg-white p-0.5" />
+          {!collapsed && <span>Amanda</span>}
+        </Link>
         {onToggleCollapse && (
           <Button
             variant="ghost"
@@ -448,7 +450,7 @@ export function CreateWorkspaceDialog({
     setBusy(true);
     try {
       const workspace = await createWorkspace(type, name);
-      toast.success(type === "research" ? "Research hub created" : "Project created");
+      toast.success(type === "research" ? "Research created" : "Project created");
       setName("");
       onCreated(workspace.id);
     } catch (error) {
@@ -463,9 +465,6 @@ export function CreateWorkspaceDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New workspace</DialogTitle>
-          <DialogDescription>
-            A workspace has its own conversation with Amanda, execution plan, and notes.
-          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
@@ -489,7 +488,7 @@ export function CreateWorkspaceDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="project">Project</SelectItem>
-                <SelectItem value="research">Research hub</SelectItem>
+                <SelectItem value="research">Research</SelectItem>
               </SelectContent>
             </Select>
           </div>

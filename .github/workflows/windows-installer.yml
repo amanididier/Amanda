@@ -11,8 +11,6 @@ on:
     branches:
       - main
       - "v0/local-model-first-run"
-      - "ui/**"
-      - "fix/**"
     tags:
       - "v*"
   pull_request:
@@ -21,6 +19,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: windows-installer-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build-windows-installer:
@@ -49,7 +51,7 @@ jobs:
       - name: Format changed frontend files
         shell: pwsh
         run: |
-          bun x prettier --write src/components/app-shell.tsx src/components/update-notice.tsx src/components/local-research-library.tsx src/components/local-workspace-chat.tsx src/components/temporary-chat.tsx src/routes/_authenticated/_shell.index.tsx 'src/routes/_authenticated/_shell.w.$workspaceId.tsx' src/routes/_authenticated/_shell.notes.tsx src/routes/_authenticated/_shell.settings.tsx src/lib/pending-workspace-prompt.ts src/styles.css
+          bun x prettier --write src/components/app-shell.tsx src/components/update-notice.tsx src/components/local-research-library.tsx src/components/local-workspace-chat.tsx src/components/temporary-chat.tsx src/routes/_authenticated/_shell.index.tsx 'src/routes/_authenticated/_shell.w.$workspaceId.tsx' src/routes/_authenticated/_shell.research.tsx src/routes/_authenticated/_shell.notes.tsx src/routes/_authenticated/_shell.settings.tsx src/lib/pending-workspace-prompt.ts src/lib/context.ts src/lib/queries.ts src/lib/local-attachments.ts src/lib/local-model-stream.ts src/lib/local-backup.ts src/test/local-attachments.test.ts src/test/local-model-stream.test.ts src/test/local-backup.test.ts src/styles.css
 
       - name: Check frontend lint
         run: bun run lint

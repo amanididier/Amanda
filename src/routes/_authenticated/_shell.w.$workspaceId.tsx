@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Circle, ListTodo, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, Circle, ListTodo, Plus, Trash2, MessageSquare, Map } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -19,7 +19,6 @@ import { LocalWorkspaceChat } from "@/components/local-workspace-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { executeSql, isDesktopApp } from "@/lib/database";
 import { workspaceQuery, workspaceTasksQuery } from "@/lib/queries";
 
@@ -29,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/_shell/w/$workspaceId")({
       { title: "Workspace — Amanda" },
       {
         name: "description",
-        content: "Your project workspace with Amanda.",
+        content: "Your focused workspace with Amanda.",
       },
       { property: "og:title", content: "Workspace — Amanda" },
       { property: "og:type", content: "website" },
@@ -59,14 +58,9 @@ function WorkspacePage() {
   const [activeTab, setActiveTab] = useState<"chat" | "tasks" | "roadmap">("chat");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
-  const [descriptionDraft, setDescriptionDraft] = useState("");
-  const [editingDescription, setEditingDescription] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceTask | null>(null);
   const desktop = isDesktopApp();
 
-  useEffect(() => {
-    setDescriptionDraft(workspace?.description ?? "");
-  }, [workspace?.description]);
 
   if (isLoading) {
     return (
@@ -140,53 +134,27 @@ function WorkspacePage() {
     }
   }
 
-  async function saveDescription() {
-    try {
-      await executeSql("UPDATE workspaces SET description = $1, updated_at = $2 WHERE id = $3", [
-        descriptionDraft.trim(),
-        new Date().toISOString(),
-        workspaceId,
-      ]);
-      queryClient.setQueryData(["workspace", workspaceId], {
-        ...workspace,
-        description: descriptionDraft.trim(),
-        updated_at: new Date().toISOString(),
-      });
-      setEditingDescription(false);
-      toast.success("Project details saved");
-    } catch {
-      toast.error("Could not save project details");
-    }
-  }
+
 
   return (
     <div className="flex h-full min-h-0 flex-col px-6 py-5">
-      <p className="text-xs tracking-wider text-muted-foreground uppercase">
-        {workspace.workspace_type === "research" ? "Research hub" : "Project"}
-      </p>
-      <h1 className="mt-1 font-serif text-3xl tracking-tight">{workspace.name}</h1>
-
-      <div className="mt-2 flex shrink-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {editingDescription ? (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="workspace-description">Workspace objective</Label>
-              <Textarea id="workspace-description" value={descriptionDraft} onChange={(event) => setDescriptionDraft(event.target.value)} placeholder="What are you trying to achieve?" className="min-h-20" />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => void saveDescription()}>Save details</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setDescriptionDraft(workspace.description); setEditingDescription(false); }}>Cancel</Button>
-              </div>
-            </div>
-          ) : (
-            <p className="line-clamp-2 text-sm text-muted-foreground">{workspace.description || "Your goal, conversations, tasks and roadmap in one place."}</p>
-          )}
-        </div>
-        {!editingDescription && <Button variant="ghost" size="sm" onClick={() => setEditingDescription(true)} disabled={!desktop}><Pencil data-icon="inline-start" /> Edit details</Button>}
-      </div>
-      <nav className="mt-5 flex shrink-0 items-center gap-8 border-b border-border" role="tablist" aria-label="Workspace sections">
-        {([["chat", "Chat"], ["tasks", "Tasks"], ["roadmap", "Roadmap"]] as const).map(([tab, label]) => (
-          <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={"relative -mb-px border-b-2 px-0 pb-3 text-sm transition-colors hover:text-foreground " + (activeTab === tab ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground")}>
-            {label}{tab === "tasks" && tasks.length > 0 && <span className="ml-2 text-xs text-muted-foreground">{tasks.length}</span>}
+      <nav className="flex shrink-0 items-center justify-center gap-12 border-b border-border" role="tablist" aria-label="Workspace sections">
+        {([
+          ["chat", "Chat", MessageSquare],
+          ["tasks", "Tasks", ListTodo],
+          ["roadmap", "Roadmap", Map],
+        ] as const).map(([tab, label, Icon]) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            onClick={() => setActiveTab(tab)}
+            className={"relative -mb-px inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-sm transition-colors hover:text-foreground " + (activeTab === tab ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground")}
+          >
+            <Icon aria-hidden="true" className="size-4" />
+            {label}
+            {tab === "tasks" && tasks.length > 0 && <span className="text-xs text-muted-foreground">{tasks.length}</span>}
           </button>
         ))}
       </nav>
@@ -243,7 +211,7 @@ function WorkspacePage() {
 
         {!desktop && (
           <p className="mt-3 text-sm text-muted-foreground">
-            Project tasks are stored locally. Open the installed Amanda desktop app to add or update
+            Workspace tasks are stored locally. Open the installed Amanda desktop app to add or update
             them.
           </p>
         )}

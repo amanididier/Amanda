@@ -28,8 +28,34 @@ function emptyBackup(): Record<string, unknown[]> {
 describe("local backup validation", () => {
   it("accepts a complete empty backup", () => {
     const backup = parseLocalBackup(backupWith(emptyBackup()));
-    expect(backup.formatVersion).toBe(1);
-    expect(Object.keys(backup.tables)).toHaveLength(tableNames.length);
+    expect(backup.formatVersion).toBe(2);
+    expect(Object.keys(backup.tables)).toHaveLength(tableNames.length + 1);
+    expect(backup.tables["local_attachments"]).toEqual([]);
+  });
+
+  it("accepts version 2 backups containing note and conversation attachments", () => {
+    const tables = {
+      ...emptyBackup(),
+      daily_notes: [{ id: "note-1", images: '["data:image/png;base64,AA=="]' }],
+      local_attachments: [
+        {
+          id: "attachment-1",
+          note_id: "note-1",
+          message_id: null,
+          name: "notes.pdf",
+          mime_type: "application/pdf",
+          kind: "document",
+          size_bytes: 120,
+          data_url: null,
+          extracted_text: "Readable document text",
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+    const backup = parseLocalBackup(
+      JSON.stringify({ formatVersion: 2, exportedAt: "2026-01-01T00:00:00.000Z", tables }),
+    );
+    expect(backup.tables["local_attachments"]).toHaveLength(1);
   });
 
   it("rejects incomplete backups and unsupported database columns", () => {

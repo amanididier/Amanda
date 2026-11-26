@@ -202,7 +202,7 @@ export function LocalResearchLibrary() {
                       ))}
                       {researchHubs.map((hub) => (
                         <SelectItem key={hub.id} value={hub.id}>
-                          {hub.name} (research hub)
+                          {hub.name} (Research)
                         </SelectItem>
                       ))}
                     </SelectGroup>

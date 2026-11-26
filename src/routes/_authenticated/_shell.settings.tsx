@@ -4,11 +4,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Archive,
+  BookOpen,
   Brain,
   Cpu,
   Download,
   Globe,
   ExternalLink,
+  HardDrive,
+  Laptop,
+  Palette,
   LoaderCircle,
   ShieldCheck,
   Square,
@@ -70,6 +74,10 @@ type WebSearchStatus = { activeProvider: WebSearchProvider; firecrawlConfigured:
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const queryClient = useQueryClient();
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [guideTopic, setGuideTopic] = useState("getting-started");
+  const [guideImages, setGuideImages] = useState<Record<string, string[]>>({});
+  const [guideImagesLoaded, setGuideImagesLoaded] = useState(false);
   const desktop = isDesktopApp();
   const [downloadProgress, setDownloadProgress] = useState<ModelProgress | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,6 +102,27 @@ function SettingsPage() {
   useEffect(() => {
     if (webSearchStatus?.activeProvider) setWebProvider(webSearchStatus.activeProvider);
   }, [webSearchStatus?.activeProvider]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("amanda-guide-reference-images");
+      if (saved) setGuideImages(JSON.parse(saved) as Record<string, string[]>);
+    } catch {
+      setGuideImages({});
+    } finally {
+      setGuideImagesLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!guideImagesLoaded) return;
+    try {
+      if (Object.keys(guideImages).length) window.localStorage.setItem("amanda-guide-reference-images", JSON.stringify(guideImages));
+      else window.localStorage.removeItem("amanda-guide-reference-images");
+    } catch {
+      toast.error("Guide images could not be saved. Try smaller images.");
+    }
+  }, [guideImages, guideImagesLoaded]);
 
   useEffect(() => {
     if (!desktop) return;
@@ -267,6 +296,17 @@ function SettingsPage() {
     }
   }
 
+  const settingSections = [
+    { id: "appearance", label: "Appearance", description: "Theme and display", icon: Palette },
+    { id: "web-search", label: "Web search", description: "Firecrawl and Brave", icon: Globe },
+    { id: "data", label: "Your data", description: "Memory and archive", icon: Brain },
+    { id: "local-ai", label: "Local AI model", description: "Install and manage Amanda's model", icon: Cpu },
+    { id: "models", label: "Models on this PC", description: "Use an existing GGUF model", icon: Laptop },
+    { id: "backup", label: "Backup and restore", description: "Move or restore your data", icon: HardDrive },
+    { id: "privacy", label: "Privacy", description: "Local storage and data controls", icon: ShieldCheck },
+    { id: "guide", label: "Manual guide", description: "Learn every part of Amanda", icon: BookOpen },
+  ];
+
   const statusLabel = !desktop
     ? "Desktop app required"
     : modelStatusLoading
@@ -282,12 +322,38 @@ function SettingsPage() {
   const progressPercent =
     currentProgress?.percent ??
     Math.min(100, Math.floor((progressBytes / (modelStatus?.totalBytes || 1)) * 100));
+  const currentGuideImages = guideImages[guideTopic] ?? [];
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="font-serif text-3xl tracking-tight">Settings</h1>
+    <div className="mx-auto max-w-6xl px-6 py-10">
+      {activeSection === null ? (
+        <>
+          <h1 className="font-serif text-3xl tracking-tight">Settings</h1>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {settingSections.map(({ id, label, description, icon: Icon }) => (
+              <button key={id} type="button" onClick={() => setActiveSection(id)} className="flex min-h-28 items-start gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"><Icon aria-hidden="true" className="size-4 text-muted-foreground" /></span>
+                <span className="min-w-0"><span className="block text-sm font-medium">{label}</span><span className="mt-1 block text-sm text-muted-foreground">{description}</span></span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="grid gap-8 md:grid-cols-[210px_minmax(0,1fr)]">
+          <aside className="md:sticky md:top-6 md:self-start">
+            <button type="button" onClick={() => setActiveSection(null)} className="mb-4 text-sm text-muted-foreground transition-colors hover:text-foreground">← All settings</button>
+            <nav aria-label="Settings sections" className="flex flex-col gap-1">
+              {settingSections.map(({ id, label, icon: Icon }) => (
+                <button key={id} type="button" onClick={() => setActiveSection(id)} aria-current={activeSection === id ? "page" : undefined} className={"flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors " + (activeSection === id ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground")}>
+                  <Icon aria-hidden="true" className="size-4 shrink-0" />{label}
+                </button>
+              ))}
+            </nav>
+          </aside>
+          <main className="min-w-0">
+            <h1 className="mb-7 font-serif text-3xl tracking-tight">{settingSections.find((item) => item.id === activeSection)?.label ?? "Settings"}</h1>
 
-      <section className="mt-10">
+      <section hidden={activeSection !== "appearance"} className="mt-2">
         <h2 className="text-sm font-semibold">Appearance</h2>
         <div className="mt-3 flex max-w-xs flex-col gap-1.5">
           <Label>Theme</Label>
@@ -304,7 +370,7 @@ function SettingsPage() {
         </div>
       </section>
 
-      <section className="mt-10" aria-labelledby="web-search-settings-heading">
+      <section hidden={activeSection !== "web-search"} className="mt-2" aria-labelledby="web-search-settings-heading">
         <div className="flex items-center gap-2"><Globe className="size-4 text-muted-foreground" /><h2 id="web-search-settings-heading" className="text-sm font-semibold">Web search</h2></div>
         <Card className="mt-3">
           <CardHeader><CardTitle className="text-base">Connect a search provider</CardTitle><CardDescription>Add your API key once. Amanda tests the connection before saving it securely in Windows Credential Manager.</CardDescription></CardHeader>
@@ -336,7 +402,7 @@ function SettingsPage() {
         </Card>
       </section>
 
-      <section className="mt-10">
+      <section hidden={activeSection !== "data"} className="mt-2">
         <h2 className="text-sm font-semibold">Your data</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Link to="/memory" className="rounded-lg border border-border p-4 transition-colors hover:bg-accent"><div className="flex items-center gap-2 text-sm font-medium"><Brain className="size-4" />Memory</div><p className="mt-2 text-sm text-muted-foreground">Review and manage what Amanda remembers.</p></Link>
@@ -344,7 +410,7 @@ function SettingsPage() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section hidden={activeSection !== "local-ai"} className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold">Local AI model</h2>
           <Badge variant={modelStatus?.running ? "default" : "secondary"}>{statusLabel}</Badge>
@@ -520,7 +586,7 @@ function SettingsPage() {
         </Card>
       </section>
 
-      <Card className="mt-4">
+      <Card hidden={activeSection !== "models"} className="mt-2">
         <CardHeader><CardTitle className="text-base">Models already on this PC</CardTitle><CardDescription>Amanda scans its model folder, Downloads, Documents, Models, Hugging Face cache and Ollama blob storage for compatible GGUF files. Existing model files stay where they are.</CardDescription></CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm text-muted-foreground">{localModels.length} compatible model{localModels.length === 1 ? "" : "s"} detected</span><Button variant="outline" size="sm" onClick={() => void refreshLocalModels()}>Scan again</Button></div>
@@ -537,12 +603,74 @@ function SettingsPage() {
         </CardContent>
       </Card>
 
-      <section className="mt-10">
+      <section hidden={activeSection !== "backup"} className="mt-2">
         <h2 className="text-sm font-semibold">Backup and restore</h2>
         <LocalDataTransfer />
       </section>
 
-      <section className="mt-10">
+      <section hidden={activeSection !== "guide"} className="mt-2">
+        <div className="grid gap-6 lg:grid-cols-[190px_minmax(0,1fr)]">
+          <nav aria-label="Amanda manual contents" className="flex flex-col gap-1">
+            {[
+              ["getting-started", "Getting started"], ["home", "Home and chat"],
+              ["projects", "Projects"], ["research", "Research"],
+              ["workspace", "Workspace chat"], ["tasks-roadmap", "Tasks and roadmap"],
+              ["notes", "Daily Notes"], ["settings", "Settings"],
+              ["memory-archive", "Memory and archive"], ["backup", "Backup and restore"],
+            ].map(([id, label]) => (
+              <button key={id} type="button" onClick={() => { if (id) setGuideTopic(id); }} aria-current={guideTopic === id ? "page" : undefined} className={"rounded-md px-3 py-2 text-left text-sm " + (guideTopic === id ? "bg-accent font-medium" : "text-muted-foreground hover:bg-accent/60")}>{label}</button>
+            ))}
+          </nav>
+          <article className="min-w-0 rounded-xl border border-border bg-card p-5 sm:p-6">
+            {(() => {
+              const articles = [
+                { id: "getting-started", title: "Getting started", intro: "Amanda keeps your work on this device and gives each project or research topic its own focused workspace.", steps: ["Open Settings and choose Local AI model.", "Download or select a compatible GGUF model, then choose Load model.", "Wait until the model is shown as Loaded.", "Return to Home and start a conversation with Amanda.", "When you are ready to organise the work, create a workspace and choose Project or Research."] },
+                { id: "home", title: "Home and chat", intro: "Use Home for quick questions, early ideas, and conversations that do not yet need their own workspace.", steps: ["Type what you want help with in the composer.", "Use the plus button to attach supported images or documents.", "Press Send and let Amanda respond.", "When a conversation grows into a longer effort, create a workspace and choose its type."] },
+                { id: "projects", title: "Projects", intro: "Projects hold work where you are trying to build, organise, or complete something.", steps: ["Open Projects from the main navigation.", "Select a project to open its workspace.", "Use Chat to discuss the work and ask Amanda to help with project actions.", "Use Tasks to track concrete work and due dates.", "Use Roadmap to review the project plan and its steps."] },
+                { id: "research", title: "Research", intro: "Research holds inquiries where the main goal is to investigate a question, topic, or evidence.", steps: ["Open Research from the main navigation.", "Create a workspace and choose Research as its type.", "Open the research workspace and use Chat to explore the topic.", "Attach source documents or images when they help explain the question.", "Keep research work in this workspace rather than mixing it with a build project."] },
+                { id: "workspace", title: "Workspace chat", intro: "Every workspace has a conversation that uses relevant context from that workspace.", steps: ["Open a workspace from Projects or Research.", "Choose Chat in the centered workspace navigation.", "Ask focused questions and attach relevant files with the plus button.", "Use the conversation selector to return to another chat when several are available.", "Use Stop if you need to interrupt a response."] },
+                { id: "tasks-roadmap", title: "Tasks and roadmap", intro: "Tasks track individual actions; the roadmap gives the larger sequence of work.", steps: ["Open a Project workspace and choose Tasks to add or complete tasks.", "Give tasks clear titles and optional due dates.", "Choose Roadmap to review the larger project plan.", "Update progress as you complete steps; keep research-only work in Research workspaces."] },
+                { id: "notes", title: "Daily Notes", intro: "Daily Notes is a flexible space for writing, collecting screenshots, and keeping reference material.", steps: ["Open Daily Notes and create a note.", "Write in the page or paste a screenshot at the cursor.", "Use Add images for a gallery, or type @image and @doc at the cursor to insert image and document references.", "Choose a project when the note belongs to a project; leave it unassigned for general research notes.", "Use Ask Amanda beside Add images to send the note and its references into the relevant workspace conversation."] },
+                { id: "settings", title: "Settings", intro: "Settings contains the controls for how Amanda looks and how local services work.", steps: ["Open Settings from the main navigation.", "Choose a category from the overview cards.", "Use the left-hand list to move between categories.", "Return to All settings to see the overview again."] },
+                { id: "memory-archive", title: "Memory and archive", intro: "Memory and Archive are separate spaces for reviewing saved context and archived work.", steps: ["Open Settings and choose Your data.", "Choose Memory to review saved context.", "Choose Archive to revisit archived items.", "Restore an item when you need it again, or delete it when you are sure it is no longer needed."] },
+                { id: "backup", title: "Backup and restore", intro: "Backups help you move your local Amanda data or recover it later.", steps: ["Open Settings and choose Backup and restore.", "Create a backup before reinstalling or moving to another device.", "Keep the backup file somewhere safe outside the Amanda installation folder.", "Use Restore only after selecting the backup you intend to recover."] },
+              ];
+              const article = articles.find((item) => item.id === guideTopic) ?? articles[0]!;
+              return (
+                <>
+                  <h2 className="font-serif text-2xl tracking-tight">{article.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{article.intro}</p>
+                  <ol className="mt-6 list-decimal space-y-3 pl-5 text-sm leading-6">{article.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}</ol>
+                </>
+              );
+            })()}
+            <div className="mt-8 border-t border-border pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h3 className="text-sm font-semibold">Reference images</h3><p className="mt-1 text-xs text-muted-foreground">Add up to four screenshots per section (12 across the guide). Images are saved in this browser profile.</p></div>
+                <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-2 text-sm hover:bg-accent">Add images
+                  <input type="file" accept="image/*" multiple className="sr-only" onChange={(event) => {
+                    const files = Array.from(event.target.files ?? []);
+                    event.currentTarget.value = "";
+                    const allGuideImages = Object.values(guideImages).flat();
+                    const storedBytes = allGuideImages.reduce((total, image) => total + Math.floor(image.length * 0.75), 0);
+                    const incomingBytes = files.reduce((total, file) => total + file.size, 0);
+                    if (files.length + currentGuideImages.length > 4 || allGuideImages.length + files.length > 12 || storedBytes + incomingBytes > 3_000_000 || files.some((file) => file.size > 750_000)) { toast.error("Add up to 4 images per section and 12 across the guide; each must be under 750 KB and the total under 3 MB."); return; }
+                    void Promise.all(files.map((file) => new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader();
+                      reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read image"));
+                      reader.onerror = () => reject(new Error("Could not read image"));
+                      reader.readAsDataURL(file);
+                    }))).then((images) => setGuideImages((current) => ({ ...current, [guideTopic]: [...(current[guideTopic] ?? []), ...images] }))).catch(() => toast.error("Could not add those images."));
+                  }} />
+                </label>
+              </div>
+              {currentGuideImages.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{currentGuideImages.map((image, index) => <div key={index} className="group relative overflow-hidden rounded-lg border border-border"><img src={image} alt={`Amanda guide reference ${index + 1}`} className="max-h-48 w-full object-contain" /><button type="button" onClick={() => setGuideImages((current) => ({ ...current, [guideTopic]: currentGuideImages.filter((_, itemIndex) => itemIndex !== index) }))} className="absolute right-2 top-2 rounded-md bg-background/90 px-2 py-1 text-xs opacity-0 shadow group-hover:opacity-100 focus:opacity-100">Remove</button></div>)}</div>}
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section hidden={activeSection !== "privacy"} className="mt-2">
         <h2 className="text-sm font-semibold">Local data and privacy</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Amanda stores project data in a local SQLite database and does not require an account. The
@@ -550,6 +678,9 @@ function SettingsPage() {
           desktop model runtime.
         </p>
       </section>
+          </main>
+        </div>
+      )}
     </div>
   );
 }

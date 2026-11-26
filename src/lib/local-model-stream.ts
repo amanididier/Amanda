@@ -29,6 +29,53 @@ export async function readModelStream(
   let pending = "";
   let eventData: string[] = [];
   let responseText = "";
+  let contentBuffer = "";
+  let insideThinking = false;
+  let lastEmittedText = "";
+
+  const emitVisibleText = () => {
+    if (responseText === lastEmittedText) return;
+    lastEmittedText = responseText;
+    onText(responseText);
+  };
+
+  const appendVisibleContent = (chunk: string) => {
+    contentBuffer += chunk;
+    while (true) {
+      if (insideThinking) {
+        const closingTag = contentBuffer.toLocaleLowerCase().indexOf("</think>");
+        if (closingTag < 0) {
+          contentBuffer = contentBuffer.slice(-7);
+          break;
+        }
+        contentBuffer = contentBuffer.slice(closingTag + 8);
+        insideThinking = false;
+        continue;
+      }
+
+      const openingTag = contentBuffer.toLocaleLowerCase().indexOf("<think>");
+      if (openingTag >= 0) {
+        responseText += contentBuffer.slice(0, openingTag);
+        contentBuffer = contentBuffer.slice(openingTag + 7);
+        insideThinking = true;
+        continue;
+      }
+
+      let partialTagLength = 0;
+      const openingToken = "<think>";
+      for (let length = 1; length < openingToken.length; length += 1) {
+        if (contentBuffer.toLocaleLowerCase().endsWith(openingToken.slice(0, length))) {
+          partialTagLength = length;
+        }
+      }
+      if (contentBuffer.length > partialTagLength) {
+        responseText += contentBuffer.slice(0, contentBuffer.length - partialTagLength);
+        contentBuffer = contentBuffer.slice(contentBuffer.length - partialTagLength);
+      }
+      break;
+    }
+    emitVisibleText();
+  };
 
   const handleEvent = () => {
     const data = eventData.join("\n");
@@ -37,10 +84,7 @@ export async function readModelStream(
     try {
       const chunk = JSON.parse(data) as ChatChunk;
       const delta = chunk.choices?.[0]?.delta;
-      if (typeof delta?.content === "string") {
-        responseText += delta.content;
-        onText(responseText);
-      }
+      if (typeof delta?.content === "string") appendVisibleContent(delta.content);
       for (const update of delta?.tool_calls ?? []) {
         const index = update.index ?? 0;
         const previous = toolCalls.get(index) ?? { index, name: "", arguments: "" };
@@ -71,6 +115,10 @@ export async function readModelStream(
     pending += decoder.decode();
     if (pending.startsWith("data:")) eventData.push(pending.slice(5).trimStart());
     if (eventData.length) handleEvent();
+    if (!insideThinking) {
+      responseText += contentBuffer.replace(/<\/?think>/gi, "").replace(/<think>?$/i, "");
+    }
+    emitVisibleText();
     return {
       text: responseText,
       toolCalls: [...toolCalls.values()].sort((left, right) => left.index - right.index),
