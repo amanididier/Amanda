@@ -230,7 +230,7 @@ export function LocalWorkspaceChat({
         .filter((item) => !currentAttachments.some((current) => current.id === item.id))
         .filter((item) =>
           queryTerms.some((term) => `${item.name} ${item.extractedText}`.toLocaleLowerCase().includes(term)) ||
-          (item.kind === "image" && /\\b(image|photo|picture|screenshot|diagram)\\b/i.test(content))
+          (item.kind === "image" && /\b(image|photo|picture|screenshot|diagram)\b/i.test(content))
         )
         .slice(0, 2);
       const allTextAttachments = [...currentAttachments, ...relatedSavedAttachments];
