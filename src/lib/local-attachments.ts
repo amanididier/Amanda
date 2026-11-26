@@ -22,7 +22,7 @@ function readAsDataUrl(file: File): Promise<string> {
 }
 
 function cleanExtractedText(value: string) {
-  return value.replace(/\u0000/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_EXTRACTED_CHARS);
+  return value.split(String.fromCharCode(0)).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, MAX_EXTRACTED_CHARS);
 }
 
 function decodeXmlText(xml: string) {
