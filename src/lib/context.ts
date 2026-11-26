@@ -84,7 +84,7 @@ export async function retrieveRelatedContext(
   return {
     notes: notes.map((note) => ({
       title: note.title,
-      content: note.content.replace(/<!--amanda-rich-note-->/, "").replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim(),
+      content: note.content.replace(/<!--amanda-rich-note-->/, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
       attachmentText: note.attachment_text,
     })),
     memories,
