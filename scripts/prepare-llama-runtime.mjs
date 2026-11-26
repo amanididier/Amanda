@@ -47,9 +47,7 @@ if (await isPinnedRuntimePrepared()) {
   try {
     const response = await fetch(RELEASE_URL, { redirect: "follow" });
     if (!response.ok) {
-      throw new Error(
-        `Could not download the pinned llama.cpp runtime (HTTP ${response.status}).`,
-      );
+      throw new Error(`Could not download the pinned llama.cpp runtime (HTTP ${response.status}).`);
     }
 
     const archive = Buffer.from(await response.arrayBuffer());
@@ -84,8 +82,7 @@ if (await isPinnedRuntimePrepared()) {
 
     const releaseFiles = await readdir(extractedDirectory);
     const bundledFiles = releaseFiles.filter(
-      (file) =>
-        file.toLowerCase().endsWith(".dll") || file.toLowerCase() === "llama-server.exe",
+      (file) => file.toLowerCase().endsWith(".dll") || file.toLowerCase() === "llama-server.exe",
     );
     if (!bundledFiles.includes("llama-server.exe") || !bundledFiles.includes("llama.dll")) {
       throw new Error(
