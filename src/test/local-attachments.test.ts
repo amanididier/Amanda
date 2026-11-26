@@ -20,11 +20,10 @@ describe("local attachment helpers", () => {
 
   it("extracts selectable text from a text-based PDF", async () => {
     vi.stubGlobal("crypto", { randomUUID: () => "pdf-attachment-id" });
-    const pdf = new File(
-      ["%PDF-1.4\n1 0 obj\n<< /Length 24 >>\nstream\nBT (Hello from PDF) Tj ET\nendstream\nendobj\n%%EOF"],
-      "sample.pdf",
-      { type: "application/pdf" },
-    );
+    const pdf = Object.assign(
+      new Blob(["%PDF-1.4\n1 0 obj\n<< /Length 24 >>\nstream\nBT (Hello from PDF) Tj ET\nendstream\nendobj\n%%EOF"], { type: "application/pdf" }),
+      { name: "sample.pdf" },
+    ) as File;
     const attachment = await createLocalAttachment(pdf);
     expect(attachment.kind).toBe("document");
     expect(attachment.extractedText).toContain("Hello from PDF");
