@@ -190,6 +190,7 @@ function NotesPage() {
 
   async function backToNotes() {
     if (activeNote && dirty && desktop) {
+      await saveQueue.current;
       const title = draftTitle.trim() || "Untitled note";
       const projectId = draftProjectId === "none" ? null : draftProjectId;
       const images = JSON.stringify(draftImages);
