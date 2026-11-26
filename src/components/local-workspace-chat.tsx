@@ -44,6 +44,7 @@ type LocalMessage = {
   conversation_id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  metadata?: string;
   created_at: string;
 };
 
@@ -494,6 +495,16 @@ export function LocalWorkspaceChat({
                 {message.role === "user" ? "You" : "Amanda · local model"}
               </p>
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
+              {getMessageAttachmentLabels(message.metadata).length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {getMessageAttachmentLabels(message.metadata).map((attachment) => (
+                    <span key={attachment.id} className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-current/15 bg-background/15 px-2 py-1 text-xs">
+                      <FileText className="size-3.5 shrink-0" />
+                      <span className="max-w-48 truncate">{attachment.name}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </li>
           ))}
           {(streamedResponse || sending) && (
@@ -633,6 +644,18 @@ export function LocalWorkspaceChat({
       </div>
     </section>
   );
+}
+
+function getMessageAttachmentLabels(metadata?: string) {
+  if (!metadata) return [] as Array<{ id: string; name: string }>;
+  try {
+    const parsed = JSON.parse(metadata) as { attachments?: Array<{ id?: string; name?: string }> };
+    return (parsed.attachments ?? [])
+      .filter((item): item is { id: string; name: string } => Boolean(item.id && item.name))
+      .map(({ id, name }) => ({ id, name }));
+  } catch {
+    return [] as Array<{ id: string; name: string }>;
+  }
 }
 
 function shouldSearchWeb(query: string) {
