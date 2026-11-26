@@ -221,7 +221,7 @@ export function LocalWorkspaceChat({
           content: message.content.slice(-MAX_HISTORY_MESSAGE_CHARS),
         }));
       const attachmentContext = attachmentPromptContext(currentAttachments);
-      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext].filter(Boolean).join("\\n\\n");
+      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext].filter(Boolean).join("\n\n");
       const modelHistory = history.map((message, index) =>
         index === history.length - 1
           ? {
