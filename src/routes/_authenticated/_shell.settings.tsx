@@ -68,8 +68,7 @@ type ModelProgress = {
 
 type ModelConnection = { baseUrl: string; apiKey: string };
 type LocalModel = { name: string; path: string; sizeBytes: number; isDefault: boolean };
-type WebSearchProvider = "firecrawl" | "brave";
-type WebSearchStatus = { activeProvider: WebSearchProvider; firecrawlConfigured: boolean; braveConfigured: boolean };
+type WebSearchStatus = { firecrawlConfigured: boolean };
 type UpdateCheckStatus = { status: "idle" | "checking" | "available" | "current" | "error"; version?: string; message?: string };
 
 function SettingsPage() {
@@ -87,7 +86,6 @@ function SettingsPage() {
   const [testResponse, setTestResponse] = useState<string | null>(null);
   const [selectedModelPath, setSelectedModelPath] = useState("");
   const { data: localModels = [], refetch: refreshLocalModels } = useQuery({ queryKey: ["local-models"], queryFn: () => invoke<LocalModel[]>("list_local_models"), enabled: desktop });
-  const [webProvider, setWebProvider] = useState<WebSearchProvider>("firecrawl");
   const [webApiKey, setWebApiKey] = useState("");
   const [savingWebKey, setSavingWebKey] = useState(false);
   const { data: webSearchStatus, refetch: refreshWebSearchStatus } = useQuery({ queryKey: ["web-search-status"], queryFn: () => invoke<WebSearchStatus>("get_web_search_status"), enabled: desktop });
@@ -100,10 +98,6 @@ function SettingsPage() {
     queryFn: () => invoke<ModelStatus>("get_model_status"),
     enabled: desktop,
   });
-
-  useEffect(() => {
-    if (webSearchStatus?.activeProvider) setWebProvider(webSearchStatus.activeProvider);
-  }, [webSearchStatus?.activeProvider]);
 
   useEffect(() => {
     const handleUpdateStatus = (event: Event) => {
@@ -156,10 +150,10 @@ function SettingsPage() {
     if (!key) { toast.error("Enter your API key first"); return; }
     setSavingWebKey(true);
     try {
-      await invoke("save_web_search_key", { provider: webProvider, apiKey: key });
+      await invoke("save_web_search_key", { apiKey: key });
       setWebApiKey("");
       await refreshWebSearchStatus();
-      toast.success(`${webProvider === "firecrawl" ? "Firecrawl" : "Brave Search"} connected and tested successfully`);
+      toast.success("Firecrawl connected and tested successfully");
     } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
     finally { setSavingWebKey(false); }
   }
@@ -310,7 +304,7 @@ function SettingsPage() {
   const settingSections = [
     { id: "appearance", label: "Appearance", description: "Theme and display", icon: Palette },
     { id: "updates", label: "App updates", description: "Check and install Amanda updates", icon: Download },
-    { id: "web-search", label: "Web search", description: "Firecrawl and Brave", icon: Globe },
+    { id: "web-search", label: "Web search", description: "Firecrawl-powered online research", icon: Globe },
     { id: "data", label: "Your data", description: "Memory and archive", icon: Brain },
     { id: "local-ai", label: "Local AI model", description: "Install and manage Amanda's model", icon: Cpu },
     { id: "models", label: "Models on this PC", description: "Use an existing GGUF model", icon: Laptop },
@@ -424,31 +418,34 @@ function SettingsPage() {
       <section hidden={activeSection !== "web-search"} className="mt-2" aria-labelledby="web-search-settings-heading">
         <div className="flex items-center gap-2"><Globe className="size-4 text-muted-foreground" /><h2 id="web-search-settings-heading" className="text-sm font-semibold">Web search</h2></div>
         <Card className="mt-3">
-          <CardHeader><CardTitle className="text-base">Connect a search provider</CardTitle><CardDescription>Add your API key once. Amanda tests the connection before saving it securely in Windows Credential Manager.</CardDescription></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Connect Firecrawl</CardTitle>
+            <CardDescription>Add your Firecrawl API key once. Amanda tests the connection before saving it securely in Windows Credential Manager. During research, Firecrawl searches the web and retrieves page content for Qwen to analyze.</CardDescription>
+          </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {!desktop ? <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Connect search providers in the installed Windows app.</p> : <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5"><Label htmlFor="web-provider">Provider</Label><Select value={webProvider} onValueChange={async (value) => {
-                      setWebProvider(value as WebSearchProvider);
-                      const configured = value === "firecrawl" ? webSearchStatus?.firecrawlConfigured : webSearchStatus?.braveConfigured;
-                      if (configured) {
-                        try { await invoke("set_web_search_provider", { provider: value }); await refreshWebSearchStatus(); }
-                        catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
-                      }
-                    }}><SelectTrigger id="web-provider"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="firecrawl">Firecrawl (recommended)</SelectItem><SelectItem value="brave">Brave Search</SelectItem></SelectContent></Select></div>
-                <div className="flex flex-col gap-1.5"><Label htmlFor="web-api-key">API key</Label><Input id="web-api-key" type="password" autoComplete="off" value={webApiKey} onChange={(event) => setWebApiKey(event.target.value)} placeholder={webProvider === "firecrawl" ? "fc-…" : "Brave Search API key"} /></div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={() => void handleSaveWebKey()} disabled={savingWebKey || !webApiKey.trim()}>{savingWebKey ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}Save key & test connection</Button>
-                <Badge variant={webSearchStatus?.firecrawlConfigured ? "default" : "secondary"}>Firecrawl {webSearchStatus?.firecrawlConfigured ? "connected" : "not connected"}</Badge>
-                <Badge variant={webSearchStatus?.braveConfigured ? "default" : "secondary"}>Brave {webSearchStatus?.braveConfigured ? "connected" : "not connected"}</Badge>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                <a href="https://www.firecrawl.dev/app/api-keys" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Firecrawl key</a>
-                <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Brave Search key</a>
-              </div>
-              <p className="text-xs text-muted-foreground">Your key is stored in Windows Credential Manager, not in Amanda&apos;s database or chat history. Switch providers whenever you like.</p>
-            </>}
+            {!desktop ? (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Connect Firecrawl in the installed Windows app.</p>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="web-api-key">Firecrawl API key</Label>
+                  <Input id="web-api-key" type="password" autoComplete="off" value={webApiKey} onChange={(event) => setWebApiKey(event.target.value)} placeholder="fc-…" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={() => void handleSaveWebKey()} disabled={savingWebKey || !webApiKey.trim()}>
+                    {savingWebKey ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}
+                    Save key & test connection
+                  </Button>
+                  <Badge variant={webSearchStatus?.firecrawlConfigured ? "default" : "secondary"}>
+                    Firecrawl {webSearchStatus?.firecrawlConfigured ? "connected" : "not connected"}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  <a href="https://www.firecrawl.dev/app/api-keys" target="_blank" rel="noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">Get a Firecrawl key</a>
+                </div>
+                <p className="text-xs text-muted-foreground">Your key is stored in Windows Credential Manager, not in Amanda&apos;s database or chat history. Qwen receives the search results and retrieved page content when your message needs online research. Full-page retrieval uses Firecrawl credits.</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </section>
