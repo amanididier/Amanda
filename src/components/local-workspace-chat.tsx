@@ -222,17 +222,20 @@ export function LocalWorkspaceChat({
           content: message.content.slice(-MAX_HISTORY_MESSAGE_CHARS),
         }));
       const savedConversationAttachments = await selectRows<LocalAttachment>(
-        "SELECT local_attachments.id, local_attachments.name, local_attachments.mime_type AS mimeType, local_attachments.size_bytes AS size, local_attachments.kind, local_attachments.data_url AS dataUrl, local_attachments.extracted_text AS extractedText FROM local_attachments INNER JOIN messages ON messages.id = local_attachments.message_id WHERE messages.conversation_id = $1 AND local_attachments.extracted_text != '' ORDER BY messages.created_at DESC LIMIT 8",
+        "SELECT local_attachments.id, local_attachments.name, local_attachments.mime_type AS mimeType, local_attachments.size_bytes AS size, local_attachments.kind, local_attachments.data_url AS dataUrl, local_attachments.extracted_text AS extractedText FROM local_attachments INNER JOIN messages ON messages.id = local_attachments.message_id WHERE messages.conversation_id = $1 ORDER BY messages.created_at DESC LIMIT 6",
         [activeConversation.id],
       );
       const queryTerms = content.toLocaleLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
       const relatedSavedAttachments = savedConversationAttachments
         .filter((item) => !currentAttachments.some((current) => current.id === item.id))
-        .filter((item) => queryTerms.some((term) => `${item.name} ${item.extractedText}`.toLocaleLowerCase().includes(term)))
+        .filter((item) =>
+          queryTerms.some((term) => `${item.name} ${item.extractedText}`.toLocaleLowerCase().includes(term)) ||
+          (item.kind === "image" && /\\b(image|photo|picture|screenshot|diagram)\\b/i.test(content))
+        )
         .slice(0, 2);
       const allTextAttachments = [...currentAttachments, ...relatedSavedAttachments];
       const attachmentContext = attachmentPromptContext(allTextAttachments);
-      const imageContext = currentAttachments
+      const imageContext = allTextAttachments
         .filter((item) => item.kind === "image")
         .map((item) => `Image attached: ${item.name}. Inspect the image if visual input is supported by this local model.`)
         .join("\n");
@@ -243,7 +246,7 @@ export function LocalWorkspaceChat({
               ...message,
               content: [
                 { type: "text", text: userPrompt },
-                ...currentAttachments.filter((item) => item.kind === "image" && item.dataUrl).map((item) => ({
+                ...allTextAttachments.filter((item) => item.kind === "image" && item.dataUrl).map((item) => ({
                   type: "image_url",
                   image_url: { url: item.dataUrl as string },
                 })),
@@ -287,7 +290,7 @@ export function LocalWorkspaceChat({
         signal: controller.signal,
         body: JSON.stringify(requestBody),
       });
-      if (!response.ok && currentAttachments.some((item) => item.kind === "image") && [400, 422].includes(response.status)) {
+      if (!response.ok && allTextAttachments.some((item) => item.kind === "image") && [400, 422, 500].includes(response.status)) {
         const textOnlyHistory = history.map((message, index) =>
           index === history.length - 1 ? { ...message, content: userPrompt } : message,
         );
