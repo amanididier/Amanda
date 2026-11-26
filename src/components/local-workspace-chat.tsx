@@ -564,7 +564,7 @@ export function LocalWorkspaceChat({
             disabled={!modelReady || sending || pendingAction !== null}
           />
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <input
                 ref={attachmentInput}
                 type="file"
@@ -583,11 +583,19 @@ export function LocalWorkspaceChat({
                     .catch((error) => toast.error(error instanceof Error ? error.message : "Could not read this file."));
                 }}
               />
-              <Button type="button" variant="outline" size="icon" aria-label="Attach a file" title="Attach a file" disabled={!desktop || sending || !modelReady} onClick={() => attachmentInput.current?.click()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Attach a file"
+                title="Attach a file"
+                disabled={!desktop || sending || !modelReady}
+                onClick={() => attachmentInput.current?.click()}
+              >
                 <Plus aria-hidden="true" />
               </Button>
               {(!landing || workspaceLayout || messages.length > 0) && (
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   {!modelReady && modelBootState === "error"
                     ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
                     : workspace.is_system === 1
@@ -596,15 +604,6 @@ export function LocalWorkspaceChat({
                 </p>
               )}
             </div>
-            {sending ? (
-              <p className="text-xs text-muted-foreground">
-                {!modelReady && modelBootState === "error"
-                  ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
-                  : workspace.is_system === 1
-                    ? "Recent conversation and relevant global notes, memories, and saved research."
-                    : "Recent conversation and relevant local notes, memories, research, and project tasks."}
-              </p>
-            )}
             {sending ? (
               <Button variant="outline" onClick={stopGeneration} aria-label="Stop response">
                 <Square data-icon="inline-start" />
