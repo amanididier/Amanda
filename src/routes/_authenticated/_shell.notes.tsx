@@ -51,6 +51,7 @@ type Note = {
   project_id: string | null;
   updated_at: string;
   images: string;
+  attachment_text: string;
 };
 
 function notePlainText(content: string) {
@@ -99,7 +100,8 @@ function NotesPage() {
     return notes.filter(
       (note) =>
         note.title.toLocaleLowerCase().includes(normalized) ||
-        notePlainText(note.content).toLocaleLowerCase().includes(normalized),
+        notePlainText(note.content).toLocaleLowerCase().includes(normalized) ||
+        note.attachment_text.toLocaleLowerCase().includes(normalized),
     );
   }, [notes, search]);
   const activeNote = notes.find((note) => note.id === selectedId) ?? null;
