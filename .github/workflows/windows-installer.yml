@@ -73,6 +73,20 @@ jobs:
             throw "Release tag $requested does not match app version $expected. Update tauri.conf.json first."
           }
 
+      - name: Verify updater signing secrets
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != '' }}
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY is missing. Add the updater private key under repository Settings > Secrets and variables > Actions."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is missing. Add the password for the updater private key under repository Settings > Secrets and variables > Actions."
+          }
+
       - name: Build NSIS installer (non-release builds)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') && inputs.release_tag == '' }}
         run: bun run desktop:build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
