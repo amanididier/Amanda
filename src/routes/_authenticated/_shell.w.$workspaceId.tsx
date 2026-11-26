@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/_shell/w/$workspaceId")({
       { title: "Workspace — Amanda" },
       {
         name: "description",
-        content: "Your project workspace with Amanda.",
+        content: "Your focused workspace with Amanda.",
       },
       { property: "og:title", content: "Workspace — Amanda" },
       { property: "og:type", content: "website" },
