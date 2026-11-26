@@ -661,7 +661,7 @@ function NotesPage() {
                   className="h-44 overflow-hidden rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
                 >
                   <span className="block truncate text-base font-medium">{note.title || "Untitled note"}</span>
-                  <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{notePlainText(note.content) || "No text yet"}</span>
+                  <span className="mt-2 line-clamp-4 block whitespace-pre-wrap text-sm text-muted-foreground">{notePlainText(note.content) || note.attachment_text.slice(0, 240) || "No text yet"}</span>
                   <span className="mt-4 block text-xs text-muted-foreground">{new Date(note.updated_at).toLocaleDateString()}</span>
                 </button>
               ))}
