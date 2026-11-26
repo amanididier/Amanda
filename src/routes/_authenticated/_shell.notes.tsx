@@ -190,7 +190,11 @@ function NotesPage() {
       return;
     }
     const noteTitle = draftTitle.trim() || "Untitled note";
-    const noteText = notePlainText(editorRef.current?.innerHTML ? NOTE_HTML_PREFIX + editorRef.current.innerHTML : draftContent);
+    const editorHtml = editorRef.current?.innerHTML ?? draftContent.replace(NOTE_HTML_PREFIX, "");
+    const noteText = notePlainText(NOTE_HTML_PREFIX + editorHtml);
+    const inlineImageUrls = Array.from(editorRef.current?.querySelectorAll("img") ?? [])
+      .map((image) => image.src)
+      .filter((src) => src.startsWith("data:image/"));
     const documentAttachments = noteAttachments.map((attachment) => ({
       id: crypto.randomUUID(),
       name: attachment.name,
@@ -200,7 +204,7 @@ function NotesPage() {
       dataUrl: attachment.dataUrl,
       extractedText: attachment.extractedText,
     })) as LocalAttachment[];
-    const imageAttachments = draftImages.map((dataUrl, index) => ({
+    const imageAttachments = [...draftImages, ...inlineImageUrls].map((dataUrl, index) => ({
       id: crypto.randomUUID(),
       name: `Note image ${index + 1}`,
       mimeType: dataUrl.slice(5, dataUrl.indexOf(";")) || "image/png",
