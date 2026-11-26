@@ -55,7 +55,7 @@ export function TemporaryChat({ onClose }: { onClose: () => void }) {
         signal: controller.signal,
         body: JSON.stringify({
           messages: [
-            { role: "system", content: "You are Amanda, a private assistant. This is a temporary conversation. Answer clearly and do not claim to save anything." },
+            { role: "system", content: "You are Amanda, a private assistant. This is a temporary conversation. Answer clearly and do not claim to save anything. Do not reveal internal reasoning, hidden analysis, or scratch work. Never output think tags or raw control tokens." },
             ...nextMessages.map(({ role, content: message }) => ({ role, content: message })),
           ],
           stream: true,
