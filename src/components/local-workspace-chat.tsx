@@ -495,14 +495,7 @@ export function LocalWorkspaceChat({
             maxLength={MAX_PROMPT_CHARS}
             disabled={!modelReady || sending || pendingAction !== null}
           />
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              {!modelReady && modelBootState === "error"
-                ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
-                : workspace.is_system === 1
-                  ? "Recent conversation and relevant global notes, memories, and saved research."
-                  : "Recent conversation and relevant local notes, memories, research, and project tasks."}
-            </p>
+          <div className="flex items-center justify-end gap-3">
             {sending ? (
               <Button variant="outline" onClick={stopGeneration} aria-label="Stop response">
                 <Square data-icon="inline-start" />
