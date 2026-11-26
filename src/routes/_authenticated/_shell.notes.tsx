@@ -262,7 +262,7 @@ function NotesPage() {
     const storedAttachment: StoredAttachment = { ...attachment, noteId: activeNote.id };
     const card = document.createElement("div");
     card.contentEditable = "false";
-    card.dataset.amandaAttachmentId = attachment.id;
+    card.dataset["amandaAttachmentId"] = attachment.id;
     card.className = "my-3 flex max-w-xl cursor-pointer items-center gap-3 rounded-xl border border-border bg-muted/40 p-3 text-sm transition-colors hover:bg-muted/70";
     const icon = document.createElement("span");
     icon.className = "flex size-9 shrink-0 items-center justify-center rounded-lg bg-background";
@@ -281,7 +281,7 @@ function NotesPage() {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.setAttribute("aria-label", `Remove ${attachment.name}`);
-    removeButton.dataset.amandaRemoveAttachment = attachment.id;
+    removeButton.dataset["amandaRemoveAttachment"] = attachment.id;
     removeButton.className = "rounded-md px-2 py-1 text-muted-foreground hover:bg-background";
     removeButton.textContent = "×";
     removeButton.addEventListener("click", (event) => {
@@ -344,7 +344,7 @@ function NotesPage() {
     range.deleteContents();
     pendingRange.current = selection.getRangeAt(0).cloneRange();
     setDraftContent(NOTE_HTML_PREFIX + editor.innerHTML);
-    setReferenceKind(match[1].toLocaleLowerCase() === "image" ? "image" : "doc");
+    setReferenceKind((match[1] ?? "").toLocaleLowerCase() === "image" ? "image" : "doc");
     window.setTimeout(() => attachmentInput.current?.click(), 0);
   }
 
@@ -375,13 +375,13 @@ function NotesPage() {
     const removeButton = target.closest<HTMLElement>("[data-amanda-remove-attachment]");
     if (removeButton) {
       event.preventDefault();
-      const attachment = noteAttachments.find((item) => item.id === removeButton.dataset.amandaRemoveAttachment);
+      const attachment = noteAttachments.find((item) => item.id === removeButton.dataset["amandaRemoveAttachment"]);
       if (attachment) void removeNoteAttachment(attachment);
       return;
     }
     const card = target.closest<HTMLElement>("[data-amanda-attachment-id]");
     if (!card) return;
-    const attachment = noteAttachments.find((item) => item.id === card.dataset.amandaAttachmentId);
+    const attachment = noteAttachments.find((item) => item.id === card.dataset["amandaAttachmentId"]);
     if (attachment) setPreviewAttachment(attachment);
   }
 
