@@ -13,6 +13,9 @@ type UpdateCheckStatus = {
 };
 type InstallPhase = "idle" | "downloading" | "installing";
 
+// Development cadence: change to 24 * 60 * 60 * 1000 for daily production checks.
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
 function publishUpdateStatus(detail: UpdateCheckStatus) {
   window.dispatchEvent(new CustomEvent<UpdateCheckStatus>("amanda:update-check-status", { detail }));
 }
@@ -66,13 +69,16 @@ export function UpdateNotice() {
 
     const requestManualCheck = () => void checkForUpdate();
     const checkWhenReturning = () => {
-      if (document.visibilityState === "visible" && Date.now() - lastCheckedAt > 30 * 60 * 1000) {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastCheckedAt >= UPDATE_CHECK_INTERVAL_MS
+      ) {
         void checkForUpdate();
       }
     };
 
     void checkForUpdate();
-    const interval = window.setInterval(() => void checkForUpdate(), 6 * 60 * 60 * 1000);
+    const interval = window.setInterval(() => void checkForUpdate(), UPDATE_CHECK_INTERVAL_MS);
     window.addEventListener("amanda:check-for-updates", requestManualCheck);
     window.addEventListener("focus", checkWhenReturning);
     document.addEventListener("visibilitychange", checkWhenReturning);
