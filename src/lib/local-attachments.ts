@@ -35,7 +35,7 @@ function decodeXmlText(xml: string) {
 
 async function inflate(bytes: Uint8Array, format: "deflate" | "deflate-raw") {
   if (typeof DecompressionStream === "undefined") throw new Error("This browser cannot extract compressed document text.");
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
+  const stream = new Blob([bytes.slice().buffer as ArrayBuffer]).stream().pipeThrough(new DecompressionStream(format));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
