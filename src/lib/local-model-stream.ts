@@ -109,7 +109,7 @@ export async function readModelStream(
     if (pending.startsWith("data:")) eventData.push(pending.slice(5).trimStart());
     if (eventData.length) handleEvent();
     if (!insideThinking) {
-      responseText += contentBuffer.replace(/<\\/?think>/gi, "").replace(/<think>?$/i, "");
+      responseText += contentBuffer.replace(/<\/?think>/gi, "").replace(/<think>?$/i, "");
     }
     onText(responseText);
     return {
