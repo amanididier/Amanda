@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Plus, Send, Square } from "lucide-react";
+import { FileText, ImagePlus, Plus, Send, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { retrieveRelatedContext } from "@/lib/context";
+import { attachmentPromptContext, createLocalAttachment, formatFileSize, type LocalAttachment } from "@/lib/local-attachments";
 import { executeSql, isDesktopApp } from "@/lib/database";
 import {
   executeApprovedLocalAction,
@@ -80,6 +81,8 @@ export function LocalWorkspaceChat({
 }) {
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const attachmentInput = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState(() =>
     !landing && workspace.is_system === 0 ? (takePendingWorkspacePrompt() ?? "") : "",
   );
@@ -155,7 +158,7 @@ export function LocalWorkspaceChat({
 
   async function handleSend() {
     const content = input.trim();
-    if (!content || sending || pendingAction) return;
+    if ((!content && attachments.length === 0) || sending || pendingAction) return;
     if (content.length > MAX_PROMPT_CHARS) {
       toast.error(`Keep each message under ${MAX_PROMPT_CHARS.toLocaleString()} characters`);
       return;
@@ -179,17 +182,24 @@ export function LocalWorkspaceChat({
     try {
       const activeConversation = conversation ?? (await ensureConversation(workspace.id));
       const now = new Date().toISOString();
+      const attachmentSummary = attachments.length ? `Attached: ${attachments.map((item) => item.name).join(", ")}` : "";
       const userMessage: LocalMessage = {
         id: crypto.randomUUID(),
         conversation_id: activeConversation.id,
         role: "user",
-        content,
+        content: content || attachmentSummary || "Please review the attached files.",
         created_at: now,
       };
       await executeSql(
-        "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES ($1, $2, $3, $4, $5)",
-        [userMessage.id, userMessage.conversation_id, userMessage.role, userMessage.content, now],
+        "INSERT INTO messages (id, conversation_id, role, content, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+        [userMessage.id, userMessage.conversation_id, userMessage.role, userMessage.content, JSON.stringify({ attachments: attachments.map(({ id, name, mimeType, size, kind }) => ({ id, name, mimeType, size, kind })) }), now],
       );
+      for (const attachment of attachments) {
+        await executeSql(
+          "INSERT INTO local_attachments (id, message_id, name, mime_type, kind, size_bytes, data_url, extracted_text, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+          [attachment.id, userMessage.id, attachment.name, attachment.mimeType, attachment.kind, attachment.size, attachment.dataUrl, attachment.extractedText, now],
+        );
+      }
       await executeSql(
         "UPDATE conversations SET updated_at = $1, title = CASE WHEN title = 'Amanda' THEN $2 ELSE title END WHERE id = $3",
         [now, content.replace(/\s+/g, " ").slice(0, 72), activeConversation.id],
@@ -200,6 +210,8 @@ export function LocalWorkspaceChat({
         (current = []) => [...current, userMessage],
       );
       setInput("");
+      const currentAttachments = attachments;
+      setAttachments([]);
 
       const history = [...messages, userMessage]
         .filter((message) => message.role === "user" || message.role === "assistant")
@@ -208,7 +220,23 @@ export function LocalWorkspaceChat({
           role: message.role,
           content: message.content.slice(-MAX_HISTORY_MESSAGE_CHARS),
         }));
-      const relatedContext = await retrieveRelatedContext(content, workspace.id);
+      const attachmentContext = attachmentPromptContext(currentAttachments);
+      const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext].filter(Boolean).join("\\n\\n");
+      const modelHistory = history.map((message, index) =>
+        index === history.length - 1
+          ? {
+              ...message,
+              content: [
+                { type: "text", text: userPrompt },
+                ...currentAttachments.filter((item) => item.kind === "image" && item.dataUrl).map((item) => ({
+                  type: "image_url",
+                  image_url: { url: item.dataUrl as string },
+                })),
+              ],
+            }
+          : message,
+      );
+      const relatedContext = await retrieveRelatedContext(content || attachmentContext, workspace.id);
       let webResults: WebSearchResult[] = [];
       if (shouldSearchWeb(content)) {
         try {
@@ -230,7 +258,7 @@ export function LocalWorkspaceChat({
               role: "system",
               content: createProjectContext(workspace, tasks, relatedContext, webResults),
             },
-            ...history,
+            ...modelHistory,
           ],
           stream: true,
           max_tokens: 1_200,
@@ -466,6 +494,26 @@ export function LocalWorkspaceChat({
           <Label htmlFor={`workspace-chat-${workspace.id}`} className="sr-only">
             Message Amanda
           </Label>
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 rounded-lg border border-border bg-muted/40 p-2" aria-label="Attached files">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="flex max-w-full items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2 text-xs">
+                  {attachment.kind === "image" && attachment.dataUrl ? (
+                    <img src={attachment.dataUrl} alt="" className="size-8 rounded object-cover" />
+                  ) : (
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block max-w-52 truncate font-medium">{attachment.name}</span>
+                    <span className="text-muted-foreground">{formatFileSize(attachment.size)}</span>
+                  </span>
+                  <button type="button" className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label={`Remove ${attachment.name}`} onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}>
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <Textarea
             id={`workspace-chat-${workspace.id}`}
             value={input}
@@ -496,7 +544,39 @@ export function LocalWorkspaceChat({
             disabled={!modelReady || sending || pendingAction !== null}
           />
           <div className="flex items-center justify-between gap-3">
-            {(!landing || workspaceLayout || messages.length > 0) && (
+            <div className="flex items-center gap-2">
+              <input
+                ref={attachmentInput}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.docx,.txt,.md,.csv,.json,.xml,.html,.yaml,.yml"
+                className="sr-only"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  event.currentTarget.value = "";
+                  if (attachments.length + files.length > 4) {
+                    toast.error("Attach up to 4 files to one message.");
+                    return;
+                  }
+                  void Promise.all(files.map((file) => createLocalAttachment(file)))
+                    .then((items) => setAttachments((current) => [...current, ...items]))
+                    .catch((error) => toast.error(error instanceof Error ? error.message : "Could not read this file."));
+                }}
+              />
+              <Button type="button" variant="outline" size="icon" aria-label="Attach a file" title="Attach a file" disabled={!desktop || sending || !modelReady} onClick={() => attachmentInput.current?.click()}>
+                <Plus aria-hidden="true" />
+              </Button>
+              {(!landing || workspaceLayout || messages.length > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  {!modelReady && modelBootState === "error"
+                    ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
+                    : workspace.is_system === 1
+                      ? "Relevant local notes, memories and research are retrieved as needed."
+                      : "Relevant project context is retrieved as needed."}
+                </p>
+              )}
+            </div>
+            {sending ? (
               <p className="text-xs text-muted-foreground">
                 {!modelReady && modelBootState === "error"
                   ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
@@ -513,7 +593,7 @@ export function LocalWorkspaceChat({
             ) : (
               <Button
                 onClick={() => void handleSend()}
-                disabled={!modelReady || !input.trim() || pendingAction !== null}
+                disabled={!modelReady || (!input.trim() && attachments.length === 0) || pendingAction !== null}
               >
                 <Send data-icon="inline-start" />
                 Send
