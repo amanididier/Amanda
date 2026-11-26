@@ -25,8 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createLocalAttachment, createPastedTextAttachment, formatFileSize, type LocalAttachment } from "@/lib/local-attachments";
-import { selectRows } from "@/lib/database";
-import { executeSql, isDesktopApp } from "@/lib/database";
+import { executeSql, isDesktopApp, selectRows } from "@/lib/database";
 import { notesQuery, workspacesQuery } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/_shell/notes")({
