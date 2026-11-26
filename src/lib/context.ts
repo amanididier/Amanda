@@ -61,10 +61,14 @@ export async function retrieveRelatedContext(
       )
       .join(" OR ");
   const parameters = [workspaceId, ...patterns];
+  const noteSearchClause = terms.map((_, index) => {
+    const parameter = `${index + 2}`;
+    return `(title LIKE ${parameter} OR content LIKE ${parameter} OR EXISTS (SELECT 1 FROM local_attachments WHERE note_id = daily_notes.id AND extracted_text LIKE ${parameter}))`;
+  }).join(" OR ");
 
   const [notes, memories, research] = await Promise.all([
     selectRows<SearchRow>(
-      `SELECT title, content, COALESCE((SELECT group_concat(name || ': ' || substr(extracted_text, 1, 6000), char(10) || char(10)) FROM local_attachments WHERE note_id = daily_notes.id AND extracted_text != ''), '') AS attachment_text FROM daily_notes WHERE archived_at IS NULL AND (project_id IS NULL OR project_id = $1) AND (${whereClause(["title", "content"])}) ORDER BY updated_at DESC LIMIT 4`,
+      `SELECT title, content, COALESCE((SELECT group_concat(name || ': ' || substr(extracted_text, 1, 6000), char(10) || char(10)) FROM local_attachments WHERE note_id = daily_notes.id AND extracted_text != ''), '') AS attachment_text FROM daily_notes WHERE archived_at IS NULL AND (project_id IS NULL OR project_id = $1) AND (${noteSearchClause}) ORDER BY updated_at DESC LIMIT 4`,
       parameters,
     ),
     selectRows<RelatedContext["memories"][number]>(
