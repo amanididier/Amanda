@@ -477,7 +477,7 @@ export function LocalWorkspaceChat({
               ? workspace.is_system === 1
                 ? "This private conversation runs locally and retrieves only relevant saved context."
                 : workspace.workspace_type === "research" ? "This conversation uses the local model and this research workspace’s saved context." : "This conversation uses the local model and this project’s saved context."
-              : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Load a compatible local model in Settings to start a conversation."}
+              : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Amanda will start the local model when you send a message."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -510,7 +510,7 @@ export function LocalWorkspaceChat({
             <Plus data-icon="inline-start" />
             New chat
           </Button>
-          {!modelReady && (
+          {!modelReady && (modelBootState === "missing" || modelBootState === "error") && (
             <Button variant="outline" size="sm" asChild>
               <Link to="/settings">Set up local AI</Link>
             </Button>
