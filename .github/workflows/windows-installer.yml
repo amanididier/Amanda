@@ -68,7 +68,7 @@ jobs:
           $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $expected = "v$($config.version)"
           $cargo = Get-Content src-tauri/Cargo.toml -Raw
-          if ($cargo -notmatch "(?m)^version = `"$([regex]::Escape($config.version))`"$") {
+          if ($cargo -notmatch "(?m)^version = `"$([regex]::Escape($config.version))`"\r?$") {
             throw "src-tauri/Cargo.toml version must match tauri.conf.json version $($config.version)."
           }
           $requested = if ("${{ inputs.release_tag }}") { "${{ inputs.release_tag }}" } else { "${{ github.ref_name }}" }
