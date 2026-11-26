@@ -146,6 +146,8 @@ function NotesPage() {
     } else {
       editor.textContent = activeNote.content;
     }
+  // Depend on the note ID, not the refreshed query object: autosave cache updates must not reset the caret.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNote?.id]);
 
   useEffect(() => {
