@@ -66,8 +66,8 @@ type ModelConnection = {
 type WebSearchResult = { title: string; url: string; description: string; content: string; provider: string };
 
 const MAX_PROMPT_CHARS = 3_000;
-const MAX_HISTORY_MESSAGES = 8;
-const MAX_HISTORY_MESSAGE_CHARS = 700;
+const MAX_HISTORY_MESSAGES = 6;
+const MAX_HISTORY_MESSAGE_CHARS = 500;
 
 export function LocalWorkspaceChat({
   workspace,
@@ -277,7 +277,7 @@ export function LocalWorkspaceChat({
         )
         .slice(0, 2);
       const allTextAttachments = [...currentAttachments, ...relatedSavedAttachments];
-      const attachmentContext = attachmentPromptContext(allTextAttachments);
+      const attachmentContext = attachmentPromptContext(allTextAttachments).slice(0, 6_000);
       const imageContext = allTextAttachments
         .filter((item) => item.kind === "image")
         .map((item) => `Image attached: ${item.name}. Inspect the image if visual input is supported by this local model.`)
@@ -759,27 +759,27 @@ function createProjectContext(
       .filter((task) => task.status === "done")
       .slice(0, 3)
       .map((task) => ({ id: task.id, title: task.title.slice(0, 120) })),
-    relevantNotes: relatedContext.notes.map((note) => ({
+    relevantNotes: relatedContext.notes.slice(0, 3).map((note) => ({
       title: note.title.slice(0, 120),
-      content: note.content.slice(0, 1_800),
-      attachedDocuments: note.attachmentText.slice(0, 6_000),
+      content: note.content.slice(0, 1_000),
+      attachedDocuments: note.attachmentText.slice(0, 1_200),
     })),
-    relevantMemories: relatedContext.memories.map((memory) => ({
+    relevantMemories: relatedContext.memories.slice(0, 5).map((memory) => ({
       category: memory.category.slice(0, 80),
-      content: memory.content.slice(0, 300),
+      content: memory.content.slice(0, 220),
     })),
     webSearchStatus: { attempted: webSearchAttempted, resultCount: webResults.length, error: webSearchError },
-    webSearchResults: webResults.map((result) => ({
-      title: result.title.slice(0, 200),
-      url: result.url.slice(0, 1000),
-      snippet: result.description.slice(0, 1_000),
-      pageContent: result.content.slice(0, 5_000),
+    webSearchResults: webResults.slice(0, 3).map((result) => ({
+      title: result.title.slice(0, 160),
+      url: result.url.slice(0, 500),
+      snippet: result.description.slice(0, 450),
+      pageContent: result.content.slice(0, 1_200),
       provider: result.provider,
     })),
-    savedResearch: relatedContext.research.map((source) => ({
+    savedResearch: relatedContext.research.slice(0, 3).map((source) => ({
       title: source.title.slice(0, 120),
-      url: source.url.slice(0, 500),
-      summary: source.summary.slice(0, 400),
+      url: source.url.slice(0, 350),
+      summary: source.summary.slice(0, 250),
       publicationDate: source.publication_date,
       retrievedAt: source.retrieved_at,
     })),
