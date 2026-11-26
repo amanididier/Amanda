@@ -89,6 +89,7 @@ export function LocalWorkspaceChat({
   );
   const [sending, setSending] = useState(false);
   const [streamedResponse, setStreamedResponse] = useState("");
+  const [progressLabel, setProgressLabel] = useState("Reading your message");
   const [pendingAction, setPendingAction] = useState<LocalAction | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -124,6 +125,23 @@ export function LocalWorkspaceChat({
   useEffect(() => {
     endOfMessages.current?.scrollIntoView({ block: "end" });
   }, [messages, streamedResponse]);
+
+  useEffect(() => {
+    if (!sending || streamedResponse) return;
+    const updates = [
+      "Reading your message",
+      "Checking relevant context",
+      "Putting the answer together",
+      "Preparing a clear response",
+    ];
+    let index = 0;
+    setProgressLabel(updates[0] ?? "Reading your message");
+    const interval = window.setInterval(() => {
+      index = (index + 1) % updates.length;
+      setProgressLabel(updates[index] ?? "Preparing a response");
+    }, 1100);
+    return () => window.clearInterval(interval);
+  }, [sending, streamedResponse]);
 
   async function startNewConversation() {
     if (!desktop || sending || pendingAction) return;
@@ -418,7 +436,7 @@ export function LocalWorkspaceChat({
           </p>
         </div>
       )}
-      {(!landing || messages.length > 0 || streamedResponse) && (
+      {!workspaceLayout && (!landing || messages.length > 0 || streamedResponse) && (
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-5">
         <div>
           <h2 id="workspace-chat-heading" className="text-sm font-semibold">
@@ -514,7 +532,7 @@ export function LocalWorkspaceChat({
             <li className="mr-auto max-w-[90%] rounded-lg bg-muted px-3 py-2.5 text-sm">
               <p className="mb-1 text-[11px] font-medium opacity-70">Amanda · local model</p>
               <p className="whitespace-pre-wrap break-words">
-                {streamedResponse || <span className="text-muted-foreground">Thinking…</span>}
+                {streamedResponse || <span className="text-muted-foreground">{progressLabel}</span>}
               </p>
             </li>
           )}
@@ -534,7 +552,7 @@ export function LocalWorkspaceChat({
       )}
 
       <div className={landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
           <Label htmlFor={`workspace-chat-${workspace.id}`} className="sr-only">
             Message Amanda
           </Label>
@@ -583,7 +601,7 @@ export function LocalWorkspaceChat({
                   : "Ask about this project…"
                 : modelBootState === "starting" ? "Starting your local model…" : modelBootState === "error" ? "Model startup failed — open Settings for details" : "Load a local model in Settings to chat"
             }
-            className={landing && messages.length === 0 ? "min-h-28 resize-y rounded-xl px-4 py-4" : "min-h-20 resize-y"}
+            className="min-h-24 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
             maxLength={MAX_PROMPT_CHARS}
             disabled={!modelReady || sending || pendingAction !== null}
           />
