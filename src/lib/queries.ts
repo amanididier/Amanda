@@ -147,7 +147,7 @@ export const notesQuery = (archived = false) =>
     queryKey: ["daily-notes", archived],
     queryFn: () =>
       selectRows<LocalNote>(
-        `SELECT daily_notes.*, COALESCE((SELECT group_concat(name || ' ' || extracted_text, char(10)) FROM local_attachments WHERE note_id = daily_notes.id AND extracted_text != ''), '') AS attachment_text FROM daily_notes WHERE archived_at ${archived ? "IS NOT NULL" : "IS NULL"} ORDER BY updated_at DESC`,
+        `SELECT daily_notes.*, COALESCE((SELECT group_concat(name || ' ' || substr(extracted_text, 1, 1200), char(10)) FROM local_attachments WHERE note_id = daily_notes.id AND extracted_text != ''), '') AS attachment_text FROM daily_notes WHERE archived_at ${archived ? "IS NOT NULL" : "IS NULL"} ORDER BY updated_at DESC`,
       ),
   });
 
