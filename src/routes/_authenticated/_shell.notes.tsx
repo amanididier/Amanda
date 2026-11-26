@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Archive, ArrowLeft, FilePlus2, FileText, ImagePlus, Paperclip, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type MouseEvent } from "react";
 import { toast } from "sonner";
 
 import {
@@ -303,7 +303,7 @@ function NotesPage() {
     window.setTimeout(() => attachmentInput.current?.click(), 0);
   }
 
-  function handleEditorPaste(event: React.ClipboardEvent<HTMLDivElement>) {
+  function handleEditorPaste(event: ClipboardEvent<HTMLDivElement>) {
     const files = Array.from(event.clipboardData.items)
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
@@ -325,7 +325,7 @@ function NotesPage() {
     }
   }
 
-  function handleEditorClick(event: React.MouseEvent<HTMLDivElement>) {
+  function handleEditorClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
     const card = target.closest<HTMLElement>("[data-amanda-attachment-id]");
     if (!card) return;
