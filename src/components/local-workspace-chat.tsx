@@ -615,15 +615,6 @@ export function LocalWorkspaceChat({
               >
                 <Plus aria-hidden="true" />
               </Button>
-              {(!landing || workspaceLayout || messages.length > 0) && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {!modelReady && modelBootState === "error"
-                    ? modelBootError || "Amanda could not start the local model. Open Settings to review the model setup."
-                    : workspace.is_system === 1
-                      ? "Relevant local notes, memories and research are retrieved as needed."
-                      : "Relevant project context is retrieved as needed."}
-                </p>
-              )}
             </div>
             {sending ? (
               <Button variant="outline" onClick={stopGeneration} aria-label="Stop response">
