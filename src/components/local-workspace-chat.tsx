@@ -28,7 +28,7 @@ import {
 import { readModelStream } from "@/lib/local-model-stream";
 import { messagesQuery, workspaceConversationsQuery } from "@/lib/queries";
 import { ensureConversation } from "@/lib/workspaces";
-import { takePendingWorkspacePrompt } from "@/lib/pending-workspace-prompt";
+import { takePendingWorkspaceMessage, takePendingWorkspacePrompt } from "@/lib/pending-workspace-prompt";
 import type { LocalWorkspace } from "@/lib/workspaces";
 
 type WorkspaceTask = {
@@ -82,11 +82,13 @@ export function LocalWorkspaceChat({
 }) {
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
-  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [pendingMessage] = useState(() => workspace.is_system === 0 ? takePendingWorkspaceMessage() : null);
+  const [attachments, setAttachments] = useState<LocalAttachment[]>(() => pendingMessage?.attachments ?? []);
   const attachmentInput = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState(() =>
-    !landing && workspace.is_system === 0 ? (takePendingWorkspacePrompt() ?? "") : "",
+    pendingMessage?.prompt ?? (!landing && workspace.is_system === 0 ? (takePendingWorkspacePrompt() ?? "") : ""),
   );
+  const [autoSendPendingPrompt, setAutoSendPendingPrompt] = useState(Boolean(pendingMessage));
   const [sending, setSending] = useState(false);
   const [streamedResponse, setStreamedResponse] = useState("");
   const [progressLabel, setProgressLabel] = useState("Reading your message");
@@ -422,6 +424,12 @@ export function LocalWorkspaceChat({
   }
 
   const modelReady = desktop && Boolean(modelConnection);
+
+  useEffect(() => {
+    if (!autoSendPendingPrompt || !modelReady || !input.trim() || sending) return;
+    setAutoSendPendingPrompt(false);
+    void handleSend();
+  }, [autoSendPendingPrompt, input, modelReady, sending]);
 
   return (
     <section
