@@ -68,6 +68,10 @@ jobs:
         run: |
           $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $expected = "v$($config.version)"
+          $cargo = Get-Content src-tauri/Cargo.toml -Raw
+          if ($cargo -notmatch "(?m)^version = `"$([regex]::Escape($config.version))`"$") {
+            throw "src-tauri/Cargo.toml version must match tauri.conf.json version $($config.version)."
+          }
           $requested = if ("${{ inputs.release_tag }}") { "${{ inputs.release_tag }}" } else { "${{ github.ref_name }}" }
           if ($requested -ne $expected) {
             throw "Release tag $requested does not match app version $expected. Update tauri.conf.json first."
@@ -82,9 +86,6 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
             throw "TAURI_SIGNING_PRIVATE_KEY is missing. Add the updater private key under repository Settings > Secrets and variables > Actions."
-          }
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
-            throw "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is missing. Add the password for the updater private key under repository Settings > Secrets and variables > Actions."
           }
 
       - name: Build NSIS installer (non-release builds)
