@@ -447,7 +447,8 @@ export function LocalWorkspaceChat({
   return (
     <section
       className={workspaceLayout ? landing && messages.length === 0 && !streamedResponse ? "flex h-full min-h-0 flex-col justify-center" : "flex h-full min-h-0 flex-col" : landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 flex min-h-0 flex-col rounded-lg border border-border"}
-      aria-labelledby="workspace-chat-heading"
+      aria-labelledby={!workspaceLayout ? "workspace-chat-heading" : undefined}
+      aria-label={workspaceLayout ? "Workspace chat" : undefined}
     >
       {landing && messages.length === 0 && !streamedResponse && (
         <div className="mb-8 text-center">
@@ -467,7 +468,7 @@ export function LocalWorkspaceChat({
             {modelReady
               ? workspace.is_system === 1
                 ? "This private conversation runs locally and retrieves only relevant saved context."
-                : "This conversation uses the local model and this project’s saved context."
+                : workspace.workspace_type === "research" ? "This conversation uses the local model and this research workspace’s saved context." : "This conversation uses the local model and this project’s saved context."
               : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Load a compatible local model in Settings to start a conversation."}
           </p>
         </div>
@@ -514,7 +515,7 @@ export function LocalWorkspaceChat({
       <div
         className={workspaceLayout ? "min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5" : "max-h-[50vh] min-h-44 overflow-y-auto px-4 py-4 sm:px-5"}
         role="log"
-        aria-label={workspace.is_system === 1 ? "General conversation" : "Project conversation"}
+        aria-label={workspace.is_system === 1 ? "General conversation" : workspace.workspace_type === "research" ? "Research conversation" : "Project conversation"}
         aria-live="polite"
         aria-relevant="additions text"
       >
@@ -523,7 +524,7 @@ export function LocalWorkspaceChat({
             {modelReady
               ? workspace.is_system === 1
                 ? "Ask Amanda anything. Only relevant local notes, saved memories, and research are retrieved; other projects stay separate."
-                : "Ask Amanda about this project. Relevant local notes, saved memories, research, and tasks are retrieved for each question."
+                : workspace.workspace_type === "research" ? "Ask Amanda about this research. Relevant notes, saved memories, and research sources are retrieved for each question." : "Ask Amanda about this project. Relevant local notes, saved memories, research, and tasks are retrieved for each question."
               : "Your conversation will be saved on this device."}
           </p>
         )}
@@ -619,7 +620,7 @@ export function LocalWorkspaceChat({
               modelReady
                 ? workspace.is_system === 1
                   ? "Ask Amanda anything…"
-                  : "Ask about this project…"
+                  : workspace.workspace_type === "research" ? "Ask about this research…" : "Ask about this project…"
                 : modelBootState === "starting" ? "Starting your local model…" : modelBootState === "error" ? "Model startup failed — open Settings for details" : "Load a local model in Settings to chat"
             }
             className="min-h-24 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
