@@ -49,6 +49,15 @@ describe("research query planning and result ranking", () => {
     expect(queries[1]).toContain("November 20");
   });
 
+  it("preserves relative date windows in focused queries", () => {
+    const queries = buildResearchQueries(
+      "Research the latest AI developments from the last 7 days and cite original sources.",
+    );
+
+    expect(queries).toHaveLength(2);
+    expect(queries[1]?.toLocaleLowerCase()).toContain("last 7 days");
+  });
+
   it("ranks relevant results and removes duplicate URLs", () => {
     const relevant = {
       title: "Climate change impacts in Rwanda",
