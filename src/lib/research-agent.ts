@@ -53,7 +53,7 @@ export function shouldResearchWeb(prompt: string) {
   if (/\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?)\b/i.test(value)) {
     return true;
   }
-  return /\b(what|who|when|where|why|how|explain|define|describe|compare|difference|versus|vs\.?|history|causes|effects|impact|benefits|risks|examples|recommend|recommendations|review|evaluate|is it true|does|did|will|should|can i|which|list|identify|investigate|research)\b/i.test(value);
+  return /\b(what|who|when|where|why|how|explain|define|describe|tell me about|overview of|guide to|compare|difference|versus|vs\.?|history|causes|effects|impact|benefits|risks|examples|recommend|recommendations|review|evaluate|is it true|does|did|will|should|can i|which|list|identify|investigate|research|how to)\b/i.test(value);
 }
 
 export function buildResearchQueries(prompt: string): string[] {
