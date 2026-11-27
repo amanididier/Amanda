@@ -28,6 +28,8 @@ describe("domain-independent web research routing", () => {
     "Write a short fictional story about a dragon.",
     "Calculate 125 + 375.",
     "Create a task to review my notes.",
+    "What are my open tasks?",
+    "What did we discuss in our last conversation?",
   ])("keeps non-research requests local: %s", (prompt) => {
     expect(shouldResearchWeb(prompt)).toBe(false);
   });
