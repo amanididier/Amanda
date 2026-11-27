@@ -119,8 +119,11 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
             .and_then(Value::as_str)
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(url);
+        // Firecrawl web results use "description"; news results use "snippet".
+        // Read both so news sources remain useful for ranking and model context.
         let description = item
             .get("description")
+            .or_else(|| item.get("snippet"))
             .and_then(Value::as_str)
             .map(str::to_string)
             .unwrap_or_else(|| {
@@ -147,10 +150,13 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
         } else {
             page_content
         };
+        // Firecrawl v2 news results expose their publication date as "date".
         let published_date = item
-            .get("publishedDate")
+            .get("date")
+            .or_else(|| item.get("publishedDate"))
             .or_else(|| item.get("published_date"))
             .or_else(|| item.get("metadata").and_then(|metadata| metadata.get("publishedDate")))
+            .or_else(|| item.get("metadata").and_then(|metadata| metadata.get("date")))
             .and_then(Value::as_str)
             .map(|value| take_chars(value, 80));
 
@@ -169,18 +175,13 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
 }
 
 #[cfg(target_os = "windows")]
-fn perform_firecrawl_search(
+fn perform_firecrawl_search_once(
+    client: &reqwest::blocking::Client,
     key: &str,
     query: &str,
     limit: u8,
     include_page_content: bool,
 ) -> Result<Vec<ResearchResult>, String> {
-    let client = reqwest::blocking::Client::builder()
-        .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(60))
-        .build()
-        .map_err(|_| "Could not prepare the Firecrawl research request".to_string())?;
-
     let mut request = serde_json::json!({
         "query": query,
         "sources": ["web", "news"],
@@ -197,31 +198,68 @@ fn perform_firecrawl_search(
         .bearer_auth(key)
         .json(&request)
         .send()
-        .map_err(|_| "Firecrawl could not be reached. Check your internet connection.".to_string())?;
+        .map_err(|error| format!("Firecrawl network request failed: {error}"))?;
 
     let status = response.status();
     let body = response
         .text()
-        .map_err(|_| "Could not read Firecrawl's search response".to_string())?;
+        .map_err(|error| format!("Could not read Firecrawl's search response: {error}"))?;
 
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-        return Err("Firecrawl rejected the saved API key. Check it in Settings → Web search.".to_string());
+        return Err(format!("Firecrawl rejected the saved API key (HTTP {status}). Check the key in Settings → Web search."));
     }
     if status == reqwest::StatusCode::PAYMENT_REQUIRED {
-        return Err("Firecrawl reports that the account needs credits or an active plan.".to_string());
+        return Err("Firecrawl reports that the account needs credits or an active plan (HTTP 402).".to_string());
     }
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        return Err("Firecrawl rate limit reached. Wait a little and try again.".to_string());
+        return Err("Firecrawl rate limit reached (HTTP 429). Wait a little and try again.".to_string());
     }
     if !status.is_success() {
-        let detail = serde_json::from_str::<Value>(&body)
-            .ok()
-            .and_then(|value| value.get("error").and_then(Value::as_str).map(str::to_string))
-            .unwrap_or_else(|| take_chars(&body, 300));
+        let payload = serde_json::from_str::<Value>(&body).ok();
+        let detail = payload
+            .as_ref()
+            .and_then(|value| value.get("error").and_then(Value::as_str))
+            .or_else(|| payload.as_ref().and_then(|value| value.get("message").and_then(Value::as_str)))
+            .map(str::to_string)
+            .unwrap_or_else(|| take_chars(&body, 400));
         return Err(format!("Firecrawl returned HTTP {status}: {detail}"));
     }
 
     parse_firecrawl_results(&body, limit as usize)
+}
+
+#[cfg(target_os = "windows")]
+fn perform_firecrawl_search(
+    key: &str,
+    query: &str,
+    limit: u8,
+    include_page_content: bool,
+) -> Result<Vec<ResearchResult>, String> {
+    let client = reqwest::blocking::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|error| format!("Could not prepare the Firecrawl research request: {error}"))?;
+
+    match perform_firecrawl_search_once(&client, key, query, limit, include_page_content) {
+        Ok(results) => Ok(results),
+        Err(primary_error)
+            if include_page_content
+                && !primary_error.contains("rejected the saved API key")
+                && !primary_error.contains("needs credits")
+                && !primary_error.contains("rate limit reached") =>
+        {
+            // Full-page extraction can fail independently of search. Retry without
+            // scraping so Amanda can still use verified titles, URLs and snippets.
+            match perform_firecrawl_search_once(&client, key, query, limit, false) {
+                Ok(results) => Ok(results),
+                Err(fallback_error) => Err(format!(
+                    "Firecrawl full-page extraction failed: {primary_error}. Search-only fallback also failed: {fallback_error}"
+                )),
+            }
+        }
+        Err(error) => Err(error),
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -380,6 +418,28 @@ mod tests {
         assert_eq!(results[1].source_type, "news");
         assert_eq!(results[1].published_date.as_deref(), Some("2026-11-20"));
         assert!(results[1].content.contains("News article details"));
+    }
+
+    #[test]
+    fn reads_firecrawl_news_snippet_and_date_fields() {
+        let body = r#"{
+            "success": true,
+            "data": {
+                "news": [{
+                    "title": "AI announcement",
+                    "url": "https://example.com/news",
+                    "snippet": "The organization announced a new AI system.",
+                    "date": "2026-11-25",
+                    "markdown": "Full announcement details"
+                }]
+            }
+        }"#;
+
+        let results = parse_firecrawl_results(body, 5).expect("news response should parse");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].description, "The organization announced a new AI system.");
+        assert_eq!(results[0].published_date.as_deref(), Some("2026-11-25"));
+        assert_eq!(results[0].source_type, "news");
     }
 
     #[test]
