@@ -130,10 +130,10 @@ export function shouldResearchWeb(prompt: string) {
 
   // Keep questions about Amanda's private workspace and conversation context local.
   if (
-    /\\b(?:my|our|this|these)\\s+(?:saved\\s+)?(?:tasks?|notes?|projects?|workspace|conversation|messages?|files?|attachments?|memories|roadmaps?|plans?)\\b/i.test(
+    /\b(?:my|our|this|these)\s+(?:saved\s+)?(?:tasks?|notes?|projects?|workspace|conversation|messages?|files?|attachments?|memories|roadmaps?|plans?)\b/i.test(
       value,
     ) ||
-    /\\bwhat did we discuss\\b/i.test(value)
+    /\bwhat did we discuss\b/i.test(value)
   ) {
     return false;
   }
