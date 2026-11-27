@@ -26,7 +26,7 @@ fn read_firecrawl_key() -> Result<String, String> {
         .map_err(|_| "Firecrawl credential could not be opened".to_string())?;
     let key = entry
         .get_password()
-        .map_err(|_| "Firecrawl API key is not configured. Add it in Settings → Web search.".to_string())?;
+        .map_err(|error| format!("Windows Credential Manager could not retrieve Amanda's saved Firecrawl API key: {error}"))?;
     if key.trim().is_empty() {
         return Err("Firecrawl API key is empty. Add it again in Settings → Web search.".to_string());
     }
@@ -322,9 +322,20 @@ pub async fn save_web_search_key(api_key: String) -> Result<WebSearchStatus, Str
             .map_err(|_| "Windows Credential Manager could not be opened".to_string())?;
         entry
             .set_password(&key)
-            .map_err(|_| "Windows could not securely save the Firecrawl API key".to_string())?;
+            .map_err(|error| format!("Windows could not securely save the Firecrawl API key: {error}"))?;
 
-        Ok(get_web_search_status())
+        // Do not report success based only on set_password. Read it back from the
+        // same credential target so Settings confirms persistence and retrieval.
+        let saved_key = entry
+            .get_password()
+            .map_err(|error| format!("The key was submitted but could not be read back from Windows Credential Manager: {error}"))?;
+        if saved_key != key {
+            return Err("Windows Credential Manager returned a different Firecrawl key after saving. Please try saving it again.".to_string());
+        }
+
+        Ok(WebSearchStatus {
+            firecrawl_configured: true,
+        })
     }
 
     #[cfg(not(target_os = "windows"))]
