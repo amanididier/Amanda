@@ -351,7 +351,7 @@ export function LocalWorkspaceChat({
             );
           }
         } catch (error) {
-          webSearchError = error instanceof Error ? error.message : "Web search failed. Check your provider in Settings.";
+          webSearchError = typeof error === "string" ? error : error instanceof Error ? error.message : error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "Web search failed for an unknown reason.";
           toast.error("Web search could not run: " + webSearchError);
         }
       }
