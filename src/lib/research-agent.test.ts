@@ -45,6 +45,8 @@ describe("research query planning and result ranking", () => {
     expect(queries[0]).toContain("AI developments");
     expect(queries[1]?.toLocaleLowerCase()).toContain("ai");
     expect(queries[1]?.toLocaleLowerCase()).toContain("developments");
+    expect(queries[1]).toContain("2026");
+    expect(queries[1]).toContain("November 20");
   });
 
   it("ranks relevant results and removes duplicate URLs", () => {
