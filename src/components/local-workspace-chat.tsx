@@ -63,7 +63,7 @@ type ModelConnection = {
   apiKey: string;
 };
 
-type WebSearchResult = { title: string; url: string; description: string; content: string; provider: string };
+type WebSearchResult = { title: string; url: string; description: string; content: string; provider: string; sourceType?: string; publishedDate?: string | null };
 
 const MAX_PROMPT_CHARS = 3_000;
 const MAX_HISTORY_MESSAGES = 6;
@@ -134,7 +134,7 @@ export function LocalWorkspaceChat({
     const textarea = composerRef.current;
     if (!textarea) return;
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 224)}px`;
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 160)}px`;
   }, [input]);
 
   useEffect(() => {
@@ -469,7 +469,7 @@ export function LocalWorkspaceChat({
 
   return (
     <section
-      className={workspaceLayout ? landing && messages.length === 0 && !streamedResponse ? "flex min-h-0 flex-col justify-center" : "flex min-h-0 flex-col" : landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 flex min-h-0 flex-col rounded-lg border border-border"}
+      className={workspaceLayout ? "flex min-h-0 flex-1 flex-col" : landing ? "mx-auto flex w-full max-w-3xl flex-col" : "mt-8 flex min-h-0 flex-col rounded-lg border border-border"}
       aria-labelledby={!workspaceLayout && !landing ? "workspace-chat-heading" : undefined}
       aria-label={workspaceLayout ? "Workspace chat" : undefined}
     >
@@ -530,7 +530,7 @@ export function LocalWorkspaceChat({
 
       {(!landing || messages.length > 0 || streamedResponse) && (
       <div
-        className={workspaceLayout ? "px-4 py-4 sm:px-5" : "max-h-[50vh] min-h-44 overflow-y-auto px-4 py-4 sm:px-5"}
+        className={workspaceLayout ? "min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5" : "max-h-[50vh] min-h-44 overflow-y-auto px-4 py-4 sm:px-5"}
         role="log"
         aria-label={workspace.is_system === 1 ? "General conversation" : workspace.workspace_type === "research" ? "Research conversation" : "Project conversation"}
         aria-live="polite"
@@ -597,7 +597,7 @@ export function LocalWorkspaceChat({
         />
       )}
 
-      <div className={`mx-auto w-full max-w-5xl ${landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}`}>
+      <div className={`mx-auto mt-auto w-full max-w-5xl shrink-0 ${landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}`}>
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
           <Label htmlFor={`workspace-chat-${workspace.id}`} className="sr-only">
             Message Amanda
@@ -667,7 +667,7 @@ export function LocalWorkspaceChat({
                 void handleSend();
               }
             }}
-            className="min-h-[44px] max-h-56 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+            className="min-h-[44px] max-h-40 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
             maxLength={MAX_PROMPT_CHARS}
             disabled={sending || pendingAction !== null}
           />
@@ -788,6 +788,8 @@ function createProjectContext(
       snippet: result.description.slice(0, 450),
       pageContent: result.content.slice(0, 1_200),
       provider: result.provider,
+      sourceType: result.sourceType ?? "web",
+      publishedDate: result.publishedDate ?? null,
     })),
     savedResearch: relatedContext.research.slice(0, 3).map((source) => ({
       title: source.title.slice(0, 120),
