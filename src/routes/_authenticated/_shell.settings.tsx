@@ -154,7 +154,16 @@ function SettingsPage() {
       setWebApiKey("");
       await refreshWebSearchStatus();
       toast.success("Firecrawl connected and tested successfully");
-    } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
+    } catch (error) {
+      const message = typeof error === "string"
+        ? error
+        : error instanceof Error
+          ? error.message
+          : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+            ? error.message
+            : String(error);
+      toast.error(message);
+    }
     finally { setSavingWebKey(false); }
   }
 
