@@ -631,7 +631,7 @@ export function LocalWorkspaceChat({
             </li>
           ))}
           {(streamedResponse || sending) && (
-            <li className="mr-auto w-full max-w-full min-w-0 py-1">
+            <li className="mx-auto w-full max-w-3xl min-w-0 py-1">
               {streamedResponse ? (
                 <AssistantMarkdown content={streamedResponse} />
               ) : (
