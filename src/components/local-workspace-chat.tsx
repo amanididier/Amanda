@@ -743,7 +743,7 @@ function shouldSearchWeb(query: string) {
 function buildWebSearchQuery(prompt: string) {
   const cleaned = prompt
     .replace(/\b(?:please\s+)?(?:search|look)\s+(?:the\s+)?(?:internet|web|online)\s+for\s+/gi, "")
-    .replace(/\bfind\s+(?:me\s+)?(?:the\s+)?\d*\s*(?:recent\s+)?(?:developments?|results?|sources?|articles?|examples?)\b/gi, "")
+    .replace(/\bfind\s+(?:me\s+)?(?:the\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(?:recent\s+)?(?:developments?|results?|sources?|articles?|examples?)\b/gi, "")
     .replace(/\b(?:explain each one|provide (?:the )?(?:original )?source urls?|include (?:the )?source urls?|don't answer from (?:your )?(?:existing )?knowledge|do not answer from (?:your )?(?:existing )?knowledge)\b/gi, "")
     .replace(/\s+/g, " ")
     .replace(/[.?!,;:]+$/g, "")
