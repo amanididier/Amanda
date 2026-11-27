@@ -11,6 +11,8 @@ import {
 describe("domain-independent web research routing", () => {
   it.each([
     "What is photosynthesis?",
+    "Tell me about quantum computing.",
+    "Latest developments in renewable energy.",
     "How does Rwanda's education system work?",
     "Compare the economic effects of tourism and agriculture.",
     "Explain the history of the printing press.",
