@@ -96,6 +96,8 @@ export function LocalWorkspaceChat({
   const attachmentInput = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+  const [composerExpanded, setComposerExpanded] = useState(false);
+  const [expandedUserMessages, setExpandedUserMessages] = useState<Set<string>>(() => new Set());
   const [autoSendPendingPrompt, setAutoSendPendingPrompt] = useState(false);
   const [sending, setSending] = useState(false);
   const [streamedResponse, setStreamedResponse] = useState("");
@@ -140,8 +142,8 @@ export function LocalWorkspaceChat({
     const textarea = composerRef.current;
     if (!textarea) return;
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 44), 160)}px`;
-  }, [input]);
+    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, composerExpanded || input.trim() ? 44 : 24), 160)}px`;
+  }, [composerExpanded, input]);
 
   useEffect(() => {
     if (workspace.is_system !== 0) return;
@@ -575,7 +577,7 @@ export function LocalWorkspaceChat({
 
       {(!landing || messages.length > 0 || streamedResponse) && (
       <div
-        className={workspaceLayout ? "min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5" : "max-h-[50vh] min-h-44 overflow-y-auto px-4 py-4 sm:px-5"}
+        className={workspaceLayout ? "min-h-0 flex-1 overflow-y-auto -mr-6 pr-6 pl-4 py-4 sm:pl-5 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40" : "max-h-[50vh] min-h-44 overflow-y-auto px-4 py-4 sm:px-5"}
         role="log"
         aria-label={workspace.is_system === 1 ? "General conversation" : workspace.workspace_type === "research" ? "Research conversation" : "Project conversation"}
         aria-live="polite"
@@ -595,13 +597,23 @@ export function LocalWorkspaceChat({
             <li
               key={message.id}
               className={message.role === "user"
-                ? "ml-auto w-fit max-w-[90%] rounded-lg bg-primary px-3 py-2.5 text-sm text-primary-foreground"
-                : "mr-auto w-full max-w-full min-w-0 py-1"}
+                ? "ml-auto mr-[4%] w-fit max-w-[50%] rounded-lg bg-primary px-3 py-2.5 text-sm text-primary-foreground"
+                : "mx-auto w-full max-w-3xl min-w-0 py-1"}
             >
               {message.role === "user" ? (
                 <>
                   <p className="mb-1 text-[11px] font-medium opacity-70">You</p>
-                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                  <div className="relative">
+                    <p className={`whitespace-pre-wrap break-words ${expandedUserMessages.has(message.id) ? "" : "max-h-36 overflow-hidden"}`}>{message.content}</p>
+                    {message.content.length > 420 && !expandedUserMessages.has(message.id) && (
+                      <div className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-primary via-primary/95 to-transparent pt-7">
+                        <button type="button" className="text-xs font-semibold underline underline-offset-2" onClick={() => setExpandedUserMessages((current) => new Set(current).add(message.id))}>Show more</button>
+                      </div>
+                    )}
+                    {expandedUserMessages.has(message.id) && message.content.length > 420 && (
+                      <button type="button" className="mt-2 text-xs font-semibold underline underline-offset-2" onClick={() => setExpandedUserMessages((current) => { const next = new Set(current); next.delete(message.id); return next; })}>Show less</button>
+                    )}
+                  </div>
                 </>
               ) : (
                 <AssistantMarkdown content={message.content} />
@@ -642,8 +654,8 @@ export function LocalWorkspaceChat({
         />
       )}
 
-      <div className={`mx-auto mt-auto w-full max-w-5xl shrink-0 ${landing && messages.length === 0 ? "p-0" : "border-t border-border p-4 sm:px-5"}`}>
-        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
+      <div className={`mx-auto mt-auto w-full max-w-5xl shrink-0 pb-2 pt-3 ${landing && messages.length === 0 ? "px-0" : "border-t border-border px-4 sm:px-5"}`}>
+        <div className={`flex flex-col rounded-2xl border border-border bg-card shadow-sm transition-[padding,gap] duration-200 ease-out ${composerExpanded || input.trim() || attachments.length ? "gap-3 p-3 sm:p-4" : "gap-1.5 p-2.5"}`}>
           <Label htmlFor={`workspace-chat-${workspace.id}`} className="sr-only">
             Message Amanda
           </Label>
@@ -670,6 +682,8 @@ export function LocalWorkspaceChat({
           <Textarea
             ref={composerRef}
             rows={1}
+            onFocus={() => setComposerExpanded(true)}
+            onBlur={() => { if (!input.trim() && attachments.length === 0) setComposerExpanded(false); }}
             id={`workspace-chat-${workspace.id}`}
             value={input}
             onChange={(event) => {
@@ -712,7 +726,7 @@ export function LocalWorkspaceChat({
                 void handleSend();
               }
             }}
-            className="min-h-[44px] max-h-40 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+            className={`max-h-40 resize-none overflow-hidden border-0 bg-transparent px-2 py-1 shadow-none transition-[height] duration-200 focus-visible:ring-0 ${composerExpanded || input.trim() ? "min-h-[44px]" : "min-h-6"}`}
             maxLength={MAX_PROMPT_CHARS}
             disabled={sending || pendingAction !== null}
           />
