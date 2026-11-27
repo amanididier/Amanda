@@ -27,6 +27,7 @@ import {
   type LocalAction,
 } from "@/lib/local-actions";
 import { readModelStream } from "@/lib/local-model-stream";
+import { buildResearchQueries, countRelevantResearchResults, mergeResearchResults, shouldResearchWeb } from "@/lib/research-agent";
 import { ensureLocalModelConnection } from "@/lib/local-model-session";
 import { messagesQuery, workspaceConversationsQuery } from "@/lib/queries";
 import { ensureConversation } from "@/lib/workspaces";
@@ -301,16 +302,36 @@ export function LocalWorkspaceChat({
       let webResults: WebSearchResult[] = [];
       let webSearchAttempted = false;
       let webSearchError: string | null = null;
-      if (shouldSearchWeb(content)) {
+      let webSearchRelevantCount = 0;
+      let webSearchQueries: string[] = [];
+      if (shouldResearchWeb(content)) {
         webSearchAttempted = true;
+        webSearchQueries = buildResearchQueries(content);
+        setProgressLabel("Searching the web");
         try {
-          const searchQuery = buildWebSearchQuery(content);
-          webResults = await invoke<WebSearchResult[]>("search_web", { query: searchQuery });
+          const initialResults = await invoke<WebSearchResult[]>("search_web", { query: webSearchQueries[0] });
+          webResults = mergeResearchResults(content, initialResults);
+          webSearchRelevantCount = countRelevantResearchResults(content, webResults);
+
+          // If the first search is weak, retry once using a focused, domain-neutral keyword query.
+          if (webSearchRelevantCount < 2 && webSearchQueries[1] && !controller.signal.aborted) {
+            setProgressLabel("Refining the search");
+            try {
+              const focusedResults = await invoke<WebSearchResult[]>("search_web", { query: webSearchQueries[1] });
+              webResults = mergeResearchResults(content, webResults, focusedResults);
+              webSearchRelevantCount = countRelevantResearchResults(content, webResults);
+            } catch (retryError) {
+              webSearchError = retryError instanceof Error ? "The focused retry failed: " + retryError.message : "The focused retry failed.";
+            }
+          }
+
           if (webResults.length === 0) {
-            webSearchError = "Firecrawl completed the request but returned no usable web results.";
-            toast.warning("Firecrawl search completed, but returned no usable sources.");
+            webSearchError = webSearchError ?? "Firecrawl completed the request but returned no usable web results.";
+            toast.warning("Web search completed, but returned no usable sources.");
+          } else if (webSearchRelevantCount === 0) {
+            toast.warning("Web search found " + webResults.length + " sources, but none clearly matched your question.");
           } else {
-            toast.success("Firecrawl search complete — " + webResults.length + " source" + (webResults.length === 1 ? "" : "s") + " found.");
+            toast.success("Web research found " + webSearchRelevantCount + " relevant source" + (webSearchRelevantCount === 1 ? "" : "s") + " from " + webResults.length + " result" + (webResults.length === 1 ? "" : "s") + ".");
           }
         } catch (error) {
           webSearchError = error instanceof Error ? error.message : "Web search failed. Check your provider in Settings.";
@@ -321,7 +342,7 @@ export function LocalWorkspaceChat({
         messages: [
           {
             role: "system",
-            content: createProjectContext(workspace, tasks, relatedContext, webResults, webSearchAttempted, webSearchError),
+            content: createProjectContext(workspace, tasks, relatedContext, webResults, webSearchAttempted, webSearchError, webSearchRelevantCount, webSearchQueries),
           },
           ...modelHistory,
         ],
@@ -736,21 +757,6 @@ function getMessageAttachmentLabels(metadata?: string) {
   }
 }
 
-function shouldSearchWeb(query: string) {
-  return /\b(search|web search|search the web|search online|look up|look online|find online|find sources|sources|citations|references|evidence|research|investigate|verify|fact[- ]check|on the web|internet|latest|newest|recent|recently|current|currently|right now|today|tonight|yesterday|this week|this month|this year|as of|breaking|news|happening|what happened|updates?|new release|release date|202[5-9]|price|pricing|exchange rate|weather|president|prime minister|ceo|who won|results)\b/i.test(query);
-}
-
-function buildWebSearchQuery(prompt: string) {
-  const cleaned = prompt
-    .replace(/\b(?:please\s+)?(?:search|look)\s+(?:the\s+)?(?:internet|web|online)\s+for\s+/gi, "")
-    .replace(/\bfind\s+(?:me\s+)?(?:the\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(?:recent\s+)?(?:developments?|results?|sources?|articles?|examples?)\b/gi, "")
-    .replace(/\b(?:explain each one|provide (?:the )?(?:original )?source urls?|include (?:the )?source urls?|don't answer from (?:your )?(?:existing )?knowledge|do not answer from (?:your )?(?:existing )?knowledge)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .replace(/[.?!,;:]+$/g, "")
-    .trim();
-  return (cleaned || prompt.replace(/\s+/g, " ").trim()).slice(0, 500);
-}
-
 function createProjectContext(
   workspace: LocalWorkspace,
   tasks: WorkspaceTask[],
@@ -758,6 +764,8 @@ function createProjectContext(
   webResults: WebSearchResult[],
   webSearchAttempted: boolean,
   webSearchError: string | null,
+  webSearchRelevantCount: number,
+  webSearchQueries: string[],
 ) {
   const context = {
     project: {
@@ -781,12 +789,12 @@ function createProjectContext(
       category: memory.category.slice(0, 80),
       content: memory.content.slice(0, 220),
     })),
-    webSearchStatus: { attempted: webSearchAttempted, resultCount: webResults.length, error: webSearchError },
-    webSearchResults: webResults.slice(0, 3).map((result) => ({
+    webSearchStatus: { attempted: webSearchAttempted, resultCount: webResults.length, relevantCount: webSearchRelevantCount, queries: webSearchQueries, error: webSearchError },
+    webSearchResults: webResults.slice(0, 6).map((result) => ({
       title: result.title.slice(0, 160),
       url: result.url.slice(0, 500),
       snippet: result.description.slice(0, 450),
-      pageContent: result.content.slice(0, 1_200),
+      pageContent: result.content.slice(0, 900),
       provider: result.provider,
       sourceType: result.sourceType ?? "web",
       publishedDate: result.publishedDate ?? null,
