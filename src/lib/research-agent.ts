@@ -188,7 +188,9 @@ export function buildResearchQueries(prompt: string): string[] {
 
   const primary = cleaned || prompt.replace(/\s+/g, " ").trim().slice(0, 500);
   const focusedWords = [...new Set(words(primary))].slice(0, 12);
-  const focused = focusedWords.join(" ").slice(0, 300);
+  const dateTerms =
+    prompt.match(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:,?\s+20\d{2})?|\b20\d{2}\b/gi) ?? [];
+  const focused = [...new Set([...focusedWords, ...dateTerms])].join(" ").slice(0, 300);
 
   return focused.length >= 8 && focused.toLocaleLowerCase() !== primary.toLocaleLowerCase()
     ? [primary, focused]
