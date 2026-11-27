@@ -29,7 +29,7 @@ function words(value: string) {
 
 export function shouldResearchWeb(prompt: string) {
   const value = prompt.trim();
-  if (value.length < 12 || words(value).length < 2) return false;
+  if (value.length < 12) return false;
 
   if (/^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you|okay|ok|goodbye)[!.\s]*$/i.test(value)) {
     return false;
