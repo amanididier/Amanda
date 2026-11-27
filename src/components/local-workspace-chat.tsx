@@ -362,6 +362,16 @@ export function LocalWorkspaceChat({
           toast.error("Web search could not run: " + webSearchError);
         }
       }
+      if (webSearchAttempted && webResults.length === 0 && webSearchError) {
+        // Do not let a small local model invent an explanation when a required live
+        // search failed. Show the provider diagnostic directly and stop this turn.
+        assistantText = [
+          "I couldn't complete the live web search, so I won't invent current information or present older model knowledge as recent.",
+          "Search diagnostic: " + webSearchError,
+          "Web search does not require a project workspace. If the diagnostic says the saved key is missing or rejected, reconnect Firecrawl in Settings → Web search.",
+        ].join("\n\n");
+        setStreamedResponse(assistantText);
+      } else {
       const requestBody = {
         messages: [
           {
@@ -445,6 +455,7 @@ export function LocalWorkspaceChat({
             toast.error("The proposal was incomplete. Please try again.");
           }
         }
+      }
       }
     } catch (error) {
       interrupted = controller.signal.aborted;
