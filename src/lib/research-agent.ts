@@ -130,7 +130,7 @@ export function shouldResearchWeb(prompt: string) {
 
   // Keep questions about Amanda's private workspace and conversation context local.
   if (
-    /\b(?:my|our|this|these)\s+(?:saved\s+)?(?:tasks?|notes?|projects?|workspace|conversation|messages?|files?|attachments?|memories|roadmaps?|plans?)\b/i.test(
+    /\b(?:my|our|this|these)\s+(?:(?:open|recent|completed|upcoming|saved|current|latest|active|last)\s+)?(?:tasks?|notes?|projects?|workspace|conversation|messages?|files?|attachments?|memories|roadmaps?|plans?)\b/i.test(
       value,
     ) ||
     /\bwhat did we discuss\b/i.test(value)
@@ -162,7 +162,7 @@ export function shouldResearchWeb(prompt: string) {
 
   // Explicit requests and time-sensitive questions always search.
   if (
-    /\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?|best|top|ranked|ranking|costs?|salaries|jobs|universities|colleges|scholarships|admission|deadline|20\\d{2})\b/i.test(
+    /\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?|best|top|ranked|ranking|costs?|salaries|jobs|universities|colleges|scholarships|admission|deadline|20\d{2})\b/i.test(
       value,
     )
   ) {
