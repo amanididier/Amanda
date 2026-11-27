@@ -75,24 +75,38 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
     // Keep the array fallback for compatible response variants.
     let empty_data = Value::Null;
     let data = payload.get("data").unwrap_or(&empty_data);
-    let mut source_results: Vec<(&Value, &str)> = Vec::new();
-    if let Some(web) = data.get("web").and_then(Value::as_array) {
-        source_results.extend(web.iter().map(|item| (item, "web")));
-    }
-    if let Some(news) = data.get("news").and_then(Value::as_array) {
-        source_results.extend(news.iter().map(|item| (item, "news")));
-    }
-    if source_results.is_empty() {
+    let mut web_results = data
+        .get("web")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let mut news_results = data
+        .get("news")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().collect::<Vec<_>>())
+        .unwrap_or_default();
+    if web_results.is_empty() && news_results.is_empty() {
         if let Some(results) = data
             .as_array()
             .or_else(|| payload.get("web").and_then(Value::as_array))
         {
-            source_results.extend(results.iter().map(|item| (item, "web")));
+            web_results = results.iter().collect();
+        }
+    }
+
+    // Interleave web and news so a web-only ranking cannot crowd out all news.
+    let mut source_results: Vec<(&Value, &str)> = Vec::new();
+    for index in 0..limit {
+        if let Some(item) = web_results.get(index) {
+            source_results.push((item, "web"));
+        }
+        if let Some(item) = news_results.get(index) {
+            source_results.push((item, "news"));
         }
     }
 
     let mut parsed = Vec::new();
-    for (item, source_type) in source_results.into_iter().take(limit) {
+    for (item, source_type) in source_results {
         let Some(url) = item.get("url").and_then(Value::as_str) else {
             continue;
         };
