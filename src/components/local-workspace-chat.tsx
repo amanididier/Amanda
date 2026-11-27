@@ -27,7 +27,12 @@ import {
   type LocalAction,
 } from "@/lib/local-actions";
 import { readModelStream } from "@/lib/local-model-stream";
-import { buildResearchQueries, countRelevantResearchResults, mergeResearchResults, shouldResearchWeb } from "@/lib/research-agent";
+import {
+  buildResearchQueries,
+  countRelevantResearchResults,
+  mergeResearchResults,
+  shouldResearchWeb,
+} from "@/lib/research-agent";
 import { ensureLocalModelConnection } from "@/lib/local-model-session";
 import { messagesQuery, workspaceConversationsQuery } from "@/lib/queries";
 import { ensureConversation } from "@/lib/workspaces";
@@ -331,7 +336,17 @@ export function LocalWorkspaceChat({
           } else if (webSearchRelevantCount === 0) {
             toast.warning("Web search found " + webResults.length + " sources, but none clearly matched your question.");
           } else {
-            toast.success("Web research found " + webSearchRelevantCount + " relevant source" + (webSearchRelevantCount === 1 ? "" : "s") + " from " + webResults.length + " result" + (webResults.length === 1 ? "" : "s") + ".");
+            toast.success(
+              "Web research found " +
+                webSearchRelevantCount +
+                " relevant source" +
+                (webSearchRelevantCount === 1 ? "" : "s") +
+                " from " +
+                webResults.length +
+                " result" +
+                (webResults.length === 1 ? "" : "s") +
+                ".",
+            );
           }
         } catch (error) {
           webSearchError = error instanceof Error ? error.message : "Web search failed. Check your provider in Settings.";
@@ -342,7 +357,16 @@ export function LocalWorkspaceChat({
         messages: [
           {
             role: "system",
-            content: createProjectContext(workspace, tasks, relatedContext, webResults, webSearchAttempted, webSearchError, webSearchRelevantCount, webSearchQueries),
+            content: createProjectContext(
+              workspace,
+              tasks,
+              relatedContext,
+              webResults,
+              webSearchAttempted,
+              webSearchError,
+              webSearchRelevantCount,
+              webSearchQueries,
+            ),
           },
           ...modelHistory,
         ],
@@ -789,7 +813,13 @@ function createProjectContext(
       category: memory.category.slice(0, 80),
       content: memory.content.slice(0, 220),
     })),
-    webSearchStatus: { attempted: webSearchAttempted, resultCount: webResults.length, relevantCount: webSearchRelevantCount, queries: webSearchQueries, error: webSearchError },
+    webSearchStatus: {
+      attempted: webSearchAttempted,
+      resultCount: webResults.length,
+      relevantCount: webSearchRelevantCount,
+      queries: webSearchQueries,
+      error: webSearchError,
+    },
     webSearchResults: webResults.slice(0, 6).map((result) => ({
       title: result.title.slice(0, 160),
       url: result.url.slice(0, 500),
