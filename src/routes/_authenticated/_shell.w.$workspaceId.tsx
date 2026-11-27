@@ -143,7 +143,7 @@ function WorkspacePage() {
 
 
   return (
-    <div className="flex min-h-full flex-col px-6 py-5">
+    <div className="flex h-full min-h-0 flex-col px-6 py-5">
       <nav className="flex shrink-0 items-center justify-center gap-12 border-b border-border" role="tablist" aria-label="Workspace sections">
         {([
           ["chat", "Chat", MessageSquare],
