@@ -464,6 +464,7 @@ export function LocalWorkspaceChat({
       interrupted = controller.signal.aborted;
       let researchToolRounds = 0;
       let researchToolCalls = 0;
+      let actionProposalPrepared = false;
       const agentMessages = [...(requestBody.messages as Array<Record<string, unknown>>)];
 
       // Qwen may request additional live searches after reviewing the first evidence set.
@@ -480,6 +481,7 @@ export function LocalWorkspaceChat({
           }
           try {
             setPendingAction(parseLocalAction(actionCalls[0]));
+            actionProposalPrepared = true;
             if (!assistantText.trim()) assistantText = "I’ve prepared this for your review. Nothing will be saved until you approve it below.";
             setStreamedResponse(assistantText);
           } catch (error) {
@@ -566,7 +568,7 @@ export function LocalWorkspaceChat({
         assistantText = result.text;
         interrupted = controller.signal.aborted;
       }
-      if (!interrupted && result.toolCalls.length > 0 && !pendingAction) {
+      if (!interrupted && result.toolCalls.length > 0 && !actionProposalPrepared) {
         assistantText = assistantText || "I couldn't complete the requested tool operation safely. Please try a more specific request.";
         setStreamedResponse(assistantText);
       }
