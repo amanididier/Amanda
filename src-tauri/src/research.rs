@@ -187,6 +187,30 @@ fn perform_firecrawl_search_once(
         "sources": ["web", "news"],
         "limit": limit,
     });
+    let normalized_query = query.to_ascii_lowercase();
+    let time_filter = if normalized_query.contains("last 24 hours")
+        || normalized_query.contains("past 24 hours")
+        || normalized_query.contains("today")
+    {
+        Some("qdr:d")
+    } else if normalized_query.contains("last 7 days")
+        || normalized_query.contains("past 7 days")
+        || normalized_query.contains("past week")
+        || normalized_query.contains("this week")
+    {
+        Some("qdr:w")
+    } else if normalized_query.contains("last 30 days")
+        || normalized_query.contains("past 30 days")
+        || normalized_query.contains("past month")
+        || normalized_query.contains("this month")
+    {
+        Some("qdr:m")
+    } else {
+        None
+    };
+    if let Some(filter) = time_filter {
+        request["tbs"] = serde_json::Value::String(filter.to_string());
+    }
     if include_page_content {
         request["scrapeOptions"] = serde_json::json!({
             "formats": [{ "type": "markdown" }]
