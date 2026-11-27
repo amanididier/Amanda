@@ -9,36 +9,138 @@ export type ResearchSearchResult = {
 };
 
 const STOP_WORDS = new Set([
-  "about", "after", "also", "and", "any", "are", "as", "at", "be", "been", "before",
-  "between", "but", "by", "can", "could", "did", "do", "does", "for", "from", "give",
-  "has", "have", "how", "i", "if", "in", "include", "into", "is", "it", "its", "me",
-  "my", "of", "on", "or", "our", "please", "provide", "show", "some", "tell", "than",
-  "that", "the", "their", "them", "then", "there", "these", "this", "those", "to",
-  "use", "was", "we", "what", "when", "where", "which", "who", "why", "with", "would",
-  "you", "your", "search", "web", "internet", "online", "find", "look", "research",
-  "latest", "recent", "current", "new", "news", "information", "information", "sources",
-  "source", "articles", "article", "results", "result", "explain", "describe", "summarize",
-  "summary", "each", "one", "three", "five", "top", "best", "between", "during", "happened", "happening",
+  "about",
+  "after",
+  "also",
+  "and",
+  "any",
+  "are",
+  "as",
+  "at",
+  "be",
+  "been",
+  "before",
+  "between",
+  "but",
+  "by",
+  "can",
+  "could",
+  "did",
+  "do",
+  "does",
+  "for",
+  "from",
+  "give",
+  "has",
+  "have",
+  "how",
+  "i",
+  "if",
+  "in",
+  "include",
+  "into",
+  "is",
+  "it",
+  "its",
+  "me",
+  "my",
+  "of",
+  "on",
+  "or",
+  "our",
+  "please",
+  "provide",
+  "show",
+  "some",
+  "tell",
+  "than",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "these",
+  "this",
+  "those",
+  "to",
+  "use",
+  "was",
+  "we",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "why",
+  "with",
+  "would",
+  "you",
+  "your",
+  "search",
+  "web",
+  "internet",
+  "online",
+  "find",
+  "look",
+  "research",
+  "latest",
+  "recent",
+  "current",
+  "new",
+  "news",
+  "information",
+  "sources",
+  "source",
+  "articles",
+  "article",
+  "results",
+  "result",
+  "explain",
+  "describe",
+  "summarize",
+  "summary",
+  "each",
+  "one",
+  "three",
+  "five",
+  "top",
+  "best",
+  "during",
+  "happened",
+  "happening",
 ]);
 
 function words(value: string) {
   return (value.toLocaleLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? [])
-    .filter((word) => !STOP_WORDS.has(word));
+    .filter((word) => !STOP_WORDS.has(word) && !/^\d+$/.test(word));
 }
 
 export function shouldResearchWeb(prompt: string) {
   const value = prompt.trim();
   if (value.length < 12) return false;
 
-  if (/^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you|okay|ok|goodbye)[!.\s]*$/i.test(value)) {
+  if (
+    /^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you|okay|ok|goodbye)[!.\s]*$/i.test(
+      value,
+    )
+  ) {
     return false;
   }
 
   // Editing user-provided material, creative writing, and simple calculations do not need live search.
-  if (/^\s*(rewrite|rephrase|translate|proofread|polish|correct the grammar|summarize this|shorten this)\b/i.test(value)) {
+  if (
+    /^\s*(rewrite|rephrase|translate|proofread|polish|correct the grammar|summarize this|shorten this)\b/i.test(
+      value,
+    )
+  ) {
     return false;
   }
-  if (/^\s*(write|create|compose)\s+(?:me\s+)?(?:a\s+)?(?:poem|song|fictional story|short story|bedtime story)\b/i.test(value)) {
+  if (
+    /^\s*(write|create|compose)\s+(?:me\s+)?(?:a\s+)?(?:poem|song|fictional story|short story|bedtime story)\b/i.test(
+      value,
+    )
+  ) {
     return false;
   }
   if (/^\s*(what is|calculate|compute)\s+\d+(?:\.\d+)?\s*[+*/-]\s*\d/i.test(value)) {
@@ -48,12 +150,19 @@ export function shouldResearchWeb(prompt: string) {
     return false;
   }
 
-  // Explicit requests always search. Otherwise, route substantive knowledge questions
-  // across domains rather than relying on a technology/news keyword list.
-  if (/\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?)\b/i.test(value)) {
+  // Explicit requests and time-sensitive questions always search.
+  if (
+    /\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?)\b/i.test(
+      value,
+    )
+  ) {
     return true;
   }
-  return /\b(what|who|when|where|why|how|explain|define|describe|tell me about|overview of|guide to|compare|difference|versus|vs\.?|history|causes|effects|impact|benefits|risks|examples|recommend|recommendations|review|evaluate|is it true|does|did|will|should|can i|which|list|identify|investigate|research|how to)\b/i.test(value);
+
+  // Route substantive knowledge questions across domains, not just technology and news.
+  return /\b(what|who|when|where|why|how|explain|define|describe|tell me about|overview of|guide to|learn about|understand|compare|difference|versus|vs\.?|history|causes|effects|impact|benefits|risks|examples|recommend|recommendations|review|evaluate|is it true|does|did|will|should|can i|which|list|identify|investigate|research|how to)\b/i.test(
+    value,
+  );
 }
 
 export function buildResearchQueries(prompt: string): string[] {
@@ -70,6 +179,7 @@ export function buildResearchQueries(prompt: string): string[] {
   const primary = cleaned || prompt.replace(/\s+/g, " ").trim().slice(0, 500);
   const focusedWords = [...new Set(words(primary))].slice(0, 12);
   const focused = focusedWords.join(" ").slice(0, 300);
+
   return focused.length >= 8 && focused.toLocaleLowerCase() !== primary.toLocaleLowerCase()
     ? [primary, focused]
     : [primary];
@@ -89,6 +199,7 @@ export function scoreResearchResult(prompt: string, result: ResearchSearchResult
     const inTitle = title.includes(word);
     const inDescription = description.includes(word);
     const inContent = content.includes(word);
+
     if (inTitle || inDescription || inContent) matches += 1;
     if (inTitle) score += 3;
     if (inDescription) score += 2;
@@ -103,11 +214,14 @@ export function mergeResearchResults(
   ...groups: ResearchSearchResult[][]
 ): ResearchSearchResult[] {
   const unique = new Map<string, ResearchSearchResult>();
+
   for (const result of groups.flat()) {
     if (!result.url.startsWith("https://")) continue;
+
     const key = result.url.replace(/#.*$/, "").replace(/\/$/, "").toLocaleLowerCase();
     if (!unique.has(key)) unique.set(key, result);
   }
+
   return [...unique.values()]
     .map((result) => ({ result, score: scoreResearchResult(prompt, result) }))
     .sort((left, right) => right.score - left.score)
