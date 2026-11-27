@@ -23,7 +23,7 @@ const STOP_WORDS = new Set([
 ]);
 
 function words(value: string) {
-  return (value.toLocaleLowerCase().match(/[[\p{L}\p{N}]{2,}]{3,}/gu) ?? [])
+  return (value.toLocaleLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? [])
     .filter((word) => !STOP_WORDS.has(word));
 }
 
