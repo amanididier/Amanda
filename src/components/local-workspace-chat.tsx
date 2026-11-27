@@ -479,8 +479,14 @@ export function LocalWorkspaceChat({
             toast.error("Amanda could not prepare a single valid project action.");
             break;
           }
+          const actionCall = actionCalls[0];
+          if (!actionCall) {
+            assistantText = "I could not read the proposed project action. Please ask me to try again.";
+            setStreamedResponse(assistantText);
+            break;
+          }
           try {
-            setPendingAction(parseLocalAction(actionCalls[0]));
+            setPendingAction(parseLocalAction(actionCall));
             actionProposalPrepared = true;
             if (!assistantText.trim()) assistantText = "I’ve prepared this for your review. Nothing will be saved until you approve it below.";
             setStreamedResponse(assistantText);
