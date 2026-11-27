@@ -128,6 +128,16 @@ export function shouldResearchWeb(prompt: string) {
     return false;
   }
 
+  // Keep questions about Amanda's private workspace and conversation context local.
+  if (
+    /\\b(?:my|our|this|these)\\s+(?:saved\\s+)?(?:tasks?|notes?|projects?|workspace|conversation|messages?|files?|attachments?|memories|roadmaps?|plans?)\\b/i.test(
+      value,
+    ) ||
+    /\\bwhat did we discuss\\b/i.test(value)
+  ) {
+    return false;
+  }
+
   // Editing user-provided material, creative writing, and simple calculations do not need live search.
   if (
     /^\s*(rewrite|rephrase|translate|proofread|polish|correct the grammar|summarize this|shorten this)\b/i.test(
@@ -152,7 +162,7 @@ export function shouldResearchWeb(prompt: string) {
 
   // Explicit requests and time-sensitive questions always search.
   if (
-    /\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?)\b/i.test(
+    /\b(search|look up|find sources|browse|on the web|online|internet|fact[- ]?check|verify with sources|latest|recent|current|today|yesterday|this week|news|weather|forecast|exchange rate|price|pricing|statistics|regulations?|best|top|ranked|ranking|costs?|salaries|jobs|universities|colleges|scholarships|admission|deadline|20\\d{2})\b/i.test(
       value,
     )
   ) {
