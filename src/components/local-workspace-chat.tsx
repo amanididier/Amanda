@@ -464,6 +464,7 @@ export function LocalWorkspaceChat({
       interrupted = controller.signal.aborted;
       let researchToolRounds = 0;
       let researchToolCalls = 0;
+      const agentMessages = [...(requestBody.messages as Array<Record<string, unknown>>)];
 
       // Qwen may request additional live searches after reviewing the first evidence set.
       // Amanda executes only this bounded, read-only tool; webpages never execute instructions.
@@ -544,17 +545,13 @@ export function LocalWorkspaceChat({
           }
         }
         if (controller.signal.aborted) break;
-        const continuedMessages = [
-          ...(requestBody.messages as Array<Record<string, unknown>>),
-          assistantToolMessage,
-          ...toolMessages,
-        ];
+        agentMessages.push(assistantToolMessage, ...toolMessages);
         setProgressLabel("Preparing your answer");
         response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${activeModelConnection.apiKey}` },
           signal: controller.signal,
-          body: JSON.stringify({ ...requestBody, messages: continuedMessages }),
+          body: JSON.stringify({ ...requestBody, messages: agentMessages }),
         });
         if (!response.ok) {
           const details = await response.text().catch(() => "");
