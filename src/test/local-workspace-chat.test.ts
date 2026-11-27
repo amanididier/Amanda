@@ -50,7 +50,7 @@ describe("local model stream parsing", () => {
     );
 
     expect(result.toolCalls).toEqual([
-      { index: 0, name: "propose_roadmap", arguments: '{"title":"Roadmap"}' },
+      { id: "call_0", index: 0, name: "propose_roadmap", arguments: '{"title":"Roadmap"}' },
     ]);
   });
 });
