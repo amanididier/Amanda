@@ -18,8 +18,7 @@ const STOP_WORDS = new Set([
   "you", "your", "search", "web", "internet", "online", "find", "look", "research",
   "latest", "recent", "current", "new", "news", "information", "information", "sources",
   "source", "articles", "article", "results", "result", "explain", "describe", "summarize",
-  "summary", "each", "one", "three", "five", "top", "best", "significant", "developments",
-  "development", "between", "during", "reported", "announced", "happened", "happening",
+  "summary", "each", "one", "three", "five", "top", "best", "between", "during", "happened", "happening",
 ]);
 
 function words(value: string) {
