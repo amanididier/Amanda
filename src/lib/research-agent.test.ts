@@ -61,8 +61,13 @@ describe("research query planning and result ranking", () => {
       provider: "Firecrawl",
     };
 
-    expect(scoreResearchResult("What are the effects of climate change in Rwanda?", relevant)).toBeGreaterThan(0);
-    expect(scoreResearchResult("What are the effects of climate change in Rwanda?", irrelevant)).toBe(0);
+    expect(
+      scoreResearchResult("What are the effects of climate change in Rwanda?", relevant),
+    ).toBeGreaterThan(0);
+    expect(
+      scoreResearchResult("What are the effects of climate change in Rwanda?", irrelevant),
+    ).toBe(0);
+
     const merged = mergeResearchResults(
       "What are the effects of climate change in Rwanda?",
       [irrelevant, relevant],
