@@ -78,6 +78,8 @@ describe("research query planning and result ranking", () => {
 
     expect(merged).toHaveLength(2);
     expect(merged[0]?.url).toBe(relevant.url);
-    expect(countRelevantResearchResults("What are the effects of climate change in Rwanda?", merged)).toBe(1);
+    expect(
+      countRelevantResearchResults("What are the effects of climate change in Rwanda?", merged),
+    ).toBe(1);
   });
 });
