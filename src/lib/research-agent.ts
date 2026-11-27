@@ -23,7 +23,7 @@ const STOP_WORDS = new Set([
 ]);
 
 function words(value: string) {
-  return (value.toLocaleLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [])
+  return (value.toLocaleLowerCase().match(/[[\p{L}\p{N}]{2,}]{3,}/gu) ?? [])
     .filter((word) => !STOP_WORDS.has(word));
 }
 
@@ -114,4 +114,8 @@ export function mergeResearchResults(
     .sort((left, right) => right.score - left.score)
     .map(({ result }) => result)
     .slice(0, 8);
+}
+
+export function countRelevantResearchResults(prompt: string, results: ResearchSearchResult[]) {
+  return results.filter((result) => scoreResearchResult(prompt, result) > 0).length;
 }
