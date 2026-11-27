@@ -10,6 +10,8 @@ pub struct ResearchResult {
     description: String,
     content: String,
     provider: String,
+    source_type: String,
+    published_date: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -69,19 +71,28 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
         return Err(take_chars(detail, 400));
     }
 
-    // Firecrawl groups standard search results under data.web. Some responses that
-    // include scraped page content use data as an array, so accept both shapes.
+    // Firecrawl v2 groups results by source under data.web and data.news.
+    // Keep the array fallback for compatible response variants.
     let empty_data = Value::Null;
     let data = payload.get("data").unwrap_or(&empty_data);
-    let results = data
-        .get("web")
-        .and_then(Value::as_array)
-        .or_else(|| data.as_array())
-        .or_else(|| payload.get("web").and_then(Value::as_array))
-        .ok_or_else(|| "Firecrawl returned no web-results collection".to_string())?;
+    let mut source_results: Vec<(&Value, &str)> = Vec::new();
+    if let Some(web) = data.get("web").and_then(Value::as_array) {
+        source_results.extend(web.iter().map(|item| (item, "web")));
+    }
+    if let Some(news) = data.get("news").and_then(Value::as_array) {
+        source_results.extend(news.iter().map(|item| (item, "news")));
+    }
+    if source_results.is_empty() {
+        if let Some(results) = data
+            .as_array()
+            .or_else(|| payload.get("web").and_then(Value::as_array))
+        {
+            source_results.extend(results.iter().map(|item| (item, "web")));
+        }
+    }
 
     let mut parsed = Vec::new();
-    for item in results.iter().take(limit) {
+    for (item, source_type) in source_results.into_iter().take(limit) {
         let Some(url) = item.get("url").and_then(Value::as_str) else {
             continue;
         };
@@ -122,6 +133,12 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
         } else {
             page_content
         };
+        let published_date = item
+            .get("publishedDate")
+            .or_else(|| item.get("published_date"))
+            .or_else(|| item.get("metadata").and_then(|metadata| metadata.get("publishedDate")))
+            .and_then(Value::as_str)
+            .map(|value| take_chars(value, 80));
 
         parsed.push(ResearchResult {
             title: take_chars(title, 300),
@@ -129,6 +146,8 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
             description: take_chars(&description, 1_200),
             content: take_chars(fallback_content, 5_000),
             provider: "Firecrawl".to_string(),
+            source_type: source_type.to_string(),
+            published_date,
         });
     }
 
@@ -150,7 +169,7 @@ fn perform_firecrawl_search(
 
     let mut request = serde_json::json!({
         "query": query,
-        "sources": ["web"],
+        "sources": ["web", "news"],
         "limit": limit,
     });
     if include_page_content {
@@ -319,5 +338,41 @@ mod tests {
         let results = parse_firecrawl_results(body, 5).expect("response should parse");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].url, "https://example.com");
+    } 
+    #[test]
+    fn parses_grouped_firecrawl_web_and_news_results() {
+        let body = r#"{
+            "success": true,
+            "data": {
+                "web": [{
+                    "title": "AI research page",
+                    "url": "https://example.com/research",
+                    "description": "Research details",
+                    "markdown": "Evidence from the research page"
+                }],
+                "news": [{
+                    "title": "AI announcement",
+                    "url": "https://example.com/news",
+                    "description": "A recent announcement",
+                    "markdown": "News article details",
+                    "metadata": { "publishedDate": "2026-11-20" }
+                }]
+            }
+        }"#;
+
+        let results = parse_firecrawl_results(body, 5).expect("grouped response should parse");
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].source_type, "web");
+        assert_eq!(results[1].source_type, "news");
+        assert_eq!(results[1].published_date.as_deref(), Some("2026-11-20"));
+        assert!(results[1].content.contains("News article details"));
     }
+
+    #[test]
+    fn returns_empty_results_for_empty_web_and_news_collections() {
+        let body = r#"{"success": true, "data": {"web": [], "news": []}}"#;
+        let results = parse_firecrawl_results(body, 5).expect("empty response should parse");
+        assert!(results.is_empty());
+    }
+
 }
