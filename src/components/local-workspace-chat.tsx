@@ -75,6 +75,26 @@ const MAX_PROMPT_CHARS = 3_000;
 const MAX_HISTORY_MESSAGES = 6;
 const MAX_HISTORY_MESSAGE_CHARS = 500;
 
+const WEB_RESEARCH_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description: "Search the live web for evidence when the user's question needs current facts, sources, or broader verification. Search is read-only. Use a focused query; you may search again when evidence is incomplete or conflicting.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", minLength: 3, maxLength: 500 } },
+        required: ["query"],
+        additionalProperties: false,
+      },
+    },
+  },
+] as const;
+
+const MAX_RESEARCH_TOOL_ROUNDS = 3;
+const MAX_RESEARCH_TOOL_CALLS = 4;
+
+
 export function LocalWorkspaceChat({
   workspace,
   tasks,
@@ -395,8 +415,14 @@ export function LocalWorkspaceChat({
         top_p: 0.8,
         presence_penalty: 1.5,
         top_k: 20,
-        ...(workspace.workspace_type === "project" && workspace.is_system === 0
-          ? { tools: LOCAL_ACTION_TOOLS, tool_choice: "auto" }
+        ...((shouldResearchWeb(content) || (workspace.workspace_type === "project" && workspace.is_system === 0))
+          ? {
+              tools: [
+                ...(shouldResearchWeb(content) ? WEB_RESEARCH_TOOLS : []),
+                ...(workspace.workspace_type === "project" && workspace.is_system === 0 ? LOCAL_ACTION_TOOLS : []),
+              ],
+              tool_choice: "auto",
+            }
           : {}),
       };
       let response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
@@ -430,31 +456,116 @@ export function LocalWorkspaceChat({
         );
       }
       if (!response.body) throw new Error("The local model did not open a response stream");
-      const result = await readModelStream(response.body, controller.signal, (nextText) => {
+      let result = await readModelStream(response.body, controller.signal, (nextText) => {
         assistantText = nextText;
         setStreamedResponse(nextText);
       });
       assistantText = result.text;
       interrupted = controller.signal.aborted;
-      if (!interrupted && result.toolCalls.length > 0) {
-        const proposedCall = result.toolCalls[0];
-        if (!proposedCall || workspace.workspace_type !== "project" || workspace.is_system === 1 || result.toolCalls.length !== 1) {
-          assistantText = "I could not prepare that project action safely. Please ask me to try again with one action at a time.";
-          setStreamedResponse(assistantText);
-          toast.error("Amanda could not prepare a single valid project action.");
-        } else {
+      let researchToolRounds = 0;
+      let researchToolCalls = 0;
+
+      // Qwen may request additional live searches after reviewing the first evidence set.
+      // Amanda executes only this bounded, read-only tool; webpages never execute instructions.
+      while (!interrupted && result.toolCalls.length > 0 && researchToolRounds < MAX_RESEARCH_TOOL_ROUNDS) {
+        const researchCalls = result.toolCalls.filter((call) => call.name === "search_web");
+        const actionCalls = result.toolCalls.filter((call) => call.name !== "search_web");
+        if (actionCalls.length > 0) {
+          if (researchCalls.length > 0 || actionCalls.length !== 1 || workspace.workspace_type !== "project" || workspace.is_system === 1) {
+            assistantText = "I could not prepare that project action safely. Please ask me to try again with one action at a time.";
+            setStreamedResponse(assistantText);
+            toast.error("Amanda could not prepare a single valid project action.");
+            break;
+          }
           try {
-            setPendingAction(parseLocalAction(proposedCall));
-            if (!assistantText.trim()) {
-              assistantText = "I’ve prepared this for your review. Nothing will be saved until you approve it below.";
-              setStreamedResponse(assistantText);
-            }
+            setPendingAction(parseLocalAction(actionCalls[0]));
+            if (!assistantText.trim()) assistantText = "I’ve prepared this for your review. Nothing will be saved until you approve it below.";
+            setStreamedResponse(assistantText);
           } catch (error) {
             assistantText = error instanceof Error ? "I couldn’t prepare a valid proposal: " + error.message + ". Please ask me to try again." : "I couldn’t prepare a valid proposal. Please ask me to try again.";
             setStreamedResponse(assistantText);
             toast.error("The proposal was incomplete. Please try again.");
           }
+          break;
         }
+        if (researchCalls.length === 0 || researchToolCalls + researchCalls.length > MAX_RESEARCH_TOOL_CALLS) {
+          assistantText = assistantText || "I reached the safe limit for additional web searches. Please narrow the question or ask me to continue with a more focused search.";
+          setStreamedResponse(assistantText);
+          break;
+        }
+
+        const assistantToolMessage = {
+          role: "assistant",
+          content: result.text || null,
+          tool_calls: result.toolCalls.map((call) => ({
+            id: call.id,
+            type: "function",
+            function: { name: call.name, arguments: call.arguments },
+          })),
+        };
+        const toolMessages: Array<{ role: string; tool_call_id: string; content: string }> = [];
+        for (const call of researchCalls) {
+          if (controller.signal.aborted) break;
+          let query = "";
+          try {
+            const args = JSON.parse(call.arguments) as { query?: unknown };
+            if (typeof args.query !== "string" || args.query.trim().length < 3 || args.query.length > 500) {
+              throw new Error("Search query must contain 3–500 characters.");
+            }
+            query = args.query.trim();
+            setProgressLabel("Searching the web");
+            const found = await invoke<WebSearchResult[]>("search_web", { query });
+            webResults = mergeResearchResults(content, webResults, found);
+            webSearchRelevantCount = countRelevantResearchResults(content, webResults);
+            webSearchQueries.push(query);
+            researchToolCalls += 1;
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(found.slice(0, 5).map((item) => ({
+                title: item.title.slice(0, 180),
+                url: item.url,
+                snippet: item.description.slice(0, 600),
+                pageContent: item.content.slice(0, 7_000),
+                publishedDate: item.publishedDate ?? null,
+                sourceType: item.sourceType ?? "web",
+              }))),
+            });
+            setProgressLabel("Checking additional evidence");
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            toolMessages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: message }) });
+          }
+        }
+        if (controller.signal.aborted) break;
+        const continuedMessages = [
+          ...(requestBody.messages as Array<Record<string, unknown>>),
+          assistantToolMessage,
+          ...toolMessages,
+        ];
+        setProgressLabel("Preparing your answer");
+        response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${activeModelConnection.apiKey}` },
+          signal: controller.signal,
+          body: JSON.stringify({ ...requestBody, messages: continuedMessages }),
+        });
+        if (!response.ok) {
+          const details = await response.text().catch(() => "");
+          throw new Error(`The local model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`);
+        }
+        if (!response.body) throw new Error("The local model did not open a response stream");
+        researchToolRounds += 1;
+        result = await readModelStream(response.body, controller.signal, (nextText) => {
+          assistantText = nextText;
+          setStreamedResponse(nextText);
+        });
+        assistantText = result.text;
+        interrupted = controller.signal.aborted;
+      }
+      if (!interrupted && result.toolCalls.length > 0 && !pendingAction) {
+        assistantText = assistantText || "I couldn't complete the requested tool operation safely. Please try a more specific request.";
+        setStreamedResponse(assistantText);
       }
       }
     } catch (error) {
