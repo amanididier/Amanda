@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseLocalAction } from "@/lib/local-actions";
 
 function call(name: string, value: unknown) {
-  return { index: 0, name, arguments: JSON.stringify(value) };
+  return { id: "test-call-0", index: 0, name, arguments: JSON.stringify(value) };
 }
 
 describe("approved local action validation", () => {
@@ -30,7 +30,7 @@ describe("approved local action validation", () => {
   });
 
   it("rejects malformed, oversized, unknown, and invalid-date proposals", () => {
-    expect(() => parseLocalAction({ index: 0, name: "propose_task", arguments: "{" })).toThrow(
+    expect(() => parseLocalAction({ id: "malformed-call", index: 0, name: "propose_task", arguments: "{" })).toThrow(
       "invalid structured data",
     );
     expect(() =>
