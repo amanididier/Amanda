@@ -1,4 +1,5 @@
 export type LocalModelToolCall = {
+  id: string;
   index: number;
   name: string;
   arguments: string;
@@ -9,6 +10,7 @@ type ChatChunk = {
     delta?: {
       content?: string;
       tool_calls?: Array<{
+        id?: string;
         index?: number;
         function?: { name?: string; arguments?: string };
       }>;
@@ -87,8 +89,9 @@ export async function readModelStream(
       if (typeof delta?.content === "string") appendVisibleContent(delta.content);
       for (const update of delta?.tool_calls ?? []) {
         const index = update.index ?? 0;
-        const previous = toolCalls.get(index) ?? { index, name: "", arguments: "" };
+        const previous = toolCalls.get(index) ?? { id: "", index, name: "", arguments: "" };
         toolCalls.set(index, {
+          id: previous.id || update.id || `call_${index}`,
           index,
           name: previous.name + (update.function?.name ?? ""),
           arguments: previous.arguments + (update.function?.arguments ?? ""),
