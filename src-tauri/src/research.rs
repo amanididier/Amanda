@@ -96,7 +96,7 @@ fn parse_firecrawl_results(body: &str, limit: usize) -> Result<Vec<ResearchResul
 
     // Interleave web and news so a web-only ranking cannot crowd out all news.
     let mut source_results: Vec<(&Value, &str)> = Vec::new();
-    for index in 0..limit {
+    for index in 0..usize::from(limit) {
         if let Some(item) = web_results.get(index) {
             source_results.push((item, "web"));
         }
