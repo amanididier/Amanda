@@ -30,9 +30,9 @@ describe("approved local action validation", () => {
   });
 
   it("rejects malformed, oversized, unknown, and invalid-date proposals", () => {
-    expect(() => parseLocalAction({ id: "malformed-call", index: 0, name: "propose_task", arguments: "{" })).toThrow(
-      "invalid structured data",
-    );
+    expect(() =>
+      parseLocalAction({ id: "malformed-call", index: 0, name: "propose_task", arguments: "{" }),
+    ).toThrow("invalid structured data");
     expect(() =>
       parseLocalAction(call("propose_task", { title: "", description: "", dueDate: null })),
     ).toThrow("task title");
