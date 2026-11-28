@@ -100,21 +100,22 @@ function buildGeminiInteractionsBody(messages: Array<{ role: string; content: un
       systemInstruction = typeof message.content === "string" ? message.content : "";
       return [];
     }
-    const parts = typeof message.content === "string"
-      ? [{ type: "text", text: message.content }]
-      : Array.isArray(message.content)
-        ? message.content.flatMap((part) => {
-            if (!part || typeof part !== "object") return [];
-            const item = part as { type?: string; text?: string; image_url?: { url?: string } };
-            if (item.type === "text" && typeof item.text === "string") return [{ type: "text", text: item.text }];
-            const url = item.image_url?.url;
-            if (item.type === "image_url" && typeof url === "string" && url.startsWith("data:")) {
-              const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
-              if (match) return [{ type: "image", mime_type: match[1], data: match[2] }];
-            }
-            return [];
-          })
-        : [];
+    const parts: Array<{ type: string; text?: string; mime_type?: string; data?: string }> =
+      typeof message.content === "string"
+        ? [{ type: "text", text: message.content }]
+        : Array.isArray(message.content)
+          ? message.content.flatMap((part): Array<{ type: string; text?: string; mime_type?: string; data?: string }> => {
+              if (!part || typeof part !== "object") return [];
+              const item = part as { type?: string; text?: string; image_url?: { url?: string } };
+              if (item.type === "text" && typeof item.text === "string") return [{ type: "text", text: item.text }];
+              const url = item.image_url?.url;
+              if (item.type === "image_url" && typeof url === "string" && url.startsWith("data:")) {
+                const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+                if (match) return [{ type: "image", mime_type: match[1], data: match[2] }];
+              }
+              return [];
+            })
+          : [];
     if (parts.length === 0) return [];
     return [{ type: message.role === "assistant" ? "model_output" : "user_input", content: parts }];
   });
