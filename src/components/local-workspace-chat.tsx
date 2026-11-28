@@ -64,10 +64,8 @@ type WorkspaceConversation = {
   updated_at: string;
 };
 
-type ModelConnection = {
-  baseUrl: string;
-  apiKey: string;
-};
+type ModelConnection = { baseUrl: string; apiKey: string };
+type ApiModelProvider = { id: string; name: string; baseUrl: string; model: string };
 
 type WebSearchResult = { title: string; url: string; description: string; content: string; provider: string; sourceType?: string; publishedDate?: string | null };
 
@@ -113,6 +111,8 @@ export function LocalWorkspaceChat({
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [configuredApiProviders] = useState<ApiModelProvider[]>(() => { try { return JSON.parse(window.localStorage.getItem("amanda-api-model-providers") ?? "[]") as ApiModelProvider[]; } catch { return []; } });
+  const [selectedProviderId, setSelectedProviderId] = useState(() => { try { return window.localStorage.getItem("amanda-active-model-provider") ?? "local"; } catch { return "local"; } });
   const attachmentInput = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
@@ -250,8 +250,10 @@ export function LocalWorkspaceChat({
     let interrupted = false;
 
     try {
-      const activeModelConnection =
-        modelConnection ?? (await ensureLocalModelConnection(queryClient));
+      const selectedProvider = configuredApiProviders.find((provider) => provider.id === selectedProviderId);
+      const activeModelConnection = selectedProvider
+        ? { baseUrl: selectedProvider.baseUrl, apiKey: await invoke<string>("get_model_provider_key", { providerId: selectedProvider.id }) }
+        : modelConnection ?? (await ensureLocalModelConnection(queryClient));
       const activeConversation = conversation ?? (await ensureConversation(workspace.id));
       const now = new Date().toISOString();
       const attachmentSummary = attachments.length ? `Attached: ${attachments.map((item) => item.name).join(", ")}` : "";
@@ -392,8 +394,7 @@ export function LocalWorkspaceChat({
         ].join("\n\n");
         setStreamedResponse(assistantText);
       } else {
-      const requestBody = {
-        messages: [
+      const requestBody = {\n        ...(selectedProvider ? { model: selectedProvider.model } : {}),\n        messages: [
           {
             role: "system",
             content: createProjectContext(
@@ -452,10 +453,10 @@ export function LocalWorkspaceChat({
       if (!response.ok) {
         const details = await response.text().catch(() => "");
         throw new Error(
-          `The local model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`,
+          `The selected model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`,
         );
       }
-      if (!response.body) throw new Error("The local model did not open a response stream");
+      if (!response.body) throw new Error("The selected model did not open a response stream");
       let result = await readModelStream(response.body, controller.signal, (nextText) => {
         assistantText = nextText;
         setStreamedResponse(nextText);
@@ -890,6 +891,16 @@ export function LocalWorkspaceChat({
                     .catch((error) => toast.error(error instanceof Error ? error.message : "Could not read this file."));
                 }}
               />
+              <Select value={selectedProviderId} onValueChange={(value) => {
+                setSelectedProviderId(value);
+                try { window.localStorage.setItem("amanda-active-model-provider", value); } catch { /* keep this selection for the current session */ }
+              }}>
+                <SelectTrigger className="h-9 w-[148px]" aria-label="Choose AI model"><SelectValue placeholder="Choose model" /></SelectTrigger>
+                <SelectContent><SelectGroup>
+                  <SelectItem value="local">Local · Qwen</SelectItem>
+                  {configuredApiProviders.map((provider) => <SelectItem key={provider.id} value={provider.id}>{provider.name} · {provider.model}</SelectItem>)}
+                </SelectGroup></SelectContent>
+              </Select>
               <Button
                 type="button"
                 variant="outline"
