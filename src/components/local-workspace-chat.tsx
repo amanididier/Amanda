@@ -111,8 +111,8 @@ export function LocalWorkspaceChat({
   const queryClient = useQueryClient();
   const desktop = isDesktopApp();
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
-  const [configuredApiProviders] = useState<ApiModelProvider[]>(() => { try { return JSON.parse(window.localStorage.getItem("amanda-api-model-providers") ?? "[]") as ApiModelProvider[]; } catch { return []; } });
-  const [selectedProviderId, setSelectedProviderId] = useState(() => { try { return window.localStorage.getItem("amanda-active-model-provider") ?? "local"; } catch { return "local"; } });
+  const [configuredApiProviders, setConfiguredApiProviders] = useState<ApiModelProvider[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState("local");
   const attachmentInput = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
@@ -153,6 +153,14 @@ export function LocalWorkspaceChat({
     initialData: () => queryClient.getQueryData<ModelConnection>(["model-connection"]) ?? null,
     staleTime: Number.POSITIVE_INFINITY,
   });
+
+  useEffect(() => {
+    try {
+      const savedProviders = window.localStorage.getItem("amanda-api-model-providers");
+      if (savedProviders) setConfiguredApiProviders(JSON.parse(savedProviders) as ApiModelProvider[]);
+      setSelectedProviderId(window.localStorage.getItem("amanda-active-model-provider") ?? "local");
+    } catch { setSelectedProviderId("local"); }
+  }, []);
 
   useEffect(() => {
     endOfMessages.current?.scrollIntoView({ block: "end" });
@@ -450,7 +458,7 @@ export function LocalWorkspaceChat({
           signal: controller.signal,
           body: JSON.stringify({ ...requestBody, messages: [requestBody.messages[0], ...textOnlyHistory] }),
         });
-        if (response.ok) toast.warning("This local model cannot read image input. Your attached documents were still included.");
+        if (response.ok) toast.warning("This selected model cannot read image input. Amanda included your note text and readable documents, but could not interpret the image itself.");
       }
       if (!response.ok) {
         const details = await response.text().catch(() => "");
