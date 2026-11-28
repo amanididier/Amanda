@@ -394,7 +394,9 @@ export function LocalWorkspaceChat({
         ].join("\n\n");
         setStreamedResponse(assistantText);
       } else {
-      const requestBody = {\n        ...(selectedProvider ? { model: selectedProvider.model } : {}),\n        messages: [
+      const requestBody = {
+        ...(selectedProvider ? { model: selectedProvider.model } : {}),
+        messages: [
           {
             role: "system",
             content: createProjectContext(
@@ -647,7 +649,7 @@ export function LocalWorkspaceChat({
     }
   }
 
-  const modelReady = desktop && Boolean(modelConnection);
+  const modelReady = desktop && (Boolean(modelConnection) || selectedProviderId !== "local");
 
   useEffect(() => {
     if (!autoSendPendingPrompt || !input.trim() || sending) return;
