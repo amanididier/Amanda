@@ -66,6 +66,10 @@ function WorkspacePage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<WorkspaceTask | null>(null);
+  const [workspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState("");
+  const [workspaceTypeDraft, setWorkspaceTypeDraft] = useState<"research" | "project">("research");
+  const [savingWorkspaceSetup, setSavingWorkspaceSetup] = useState(false);
   const desktop = isDesktopApp();
 
 
@@ -234,6 +238,47 @@ function WorkspacePage() {
         </div>
       )}
 
+      <Dialog open={workspaceSetupOpen} onOpenChange={setWorkspaceSetupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set up this workspace</DialogTitle>
+            <DialogDescription>Give this conversation a name and choose what kind of work it belongs to.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="workspace-name" className="text-sm font-medium">Workspace name</label>
+              <Input id="workspace-name" value={workspaceNameDraft} onChange={(event) => setWorkspaceNameDraft(event.target.value)} placeholder="Name your project or research" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="workspace-type" className="text-sm font-medium">Workspace type</label>
+              <select id="workspace-type" value={workspaceTypeDraft} onChange={(event) => setWorkspaceTypeDraft(event.target.value as "research" | "project")} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="research">Research</option>
+                <option value="project">Project</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWorkspaceSetupOpen(false)} disabled={savingWorkspaceSetup}>Later</Button>
+            <Button disabled={!workspaceNameDraft.trim() || savingWorkspaceSetup || !desktop} onClick={() => {
+              void (async () => {
+                setSavingWorkspaceSetup(true);
+                try {
+                  await executeSql("UPDATE workspaces SET name = $1, workspace_type = $2, updated_at = $3 WHERE id = $4", [workspaceNameDraft.trim(), workspaceTypeDraft, new Date().toISOString(), workspaceId]);
+                  await queryClient.invalidateQueries({ queryKey: ["workspace", workspaceId] });
+                  await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+                  setWorkspaceSetupOpen(false);
+                  toast.success("Workspace updated");
+                } catch {
+                  toast.error("Could not update this workspace");
+                } finally {
+                  setSavingWorkspaceSetup(false);
+                }
+              })();
+            }}>Save workspace</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={addTaskOpen} onOpenChange={(open) => {
         setAddTaskOpen(open);
         if (!open) setTaskTitle("");
@@ -280,6 +325,11 @@ function WorkspacePage() {
             tasks={tasks}
             landing
             workspaceLayout
+            onBeginWorkspace={() => {
+              setWorkspaceNameDraft(workspace.name);
+              setWorkspaceTypeDraft(workspace.workspace_type);
+              setWorkspaceSetupOpen(true);
+            }}
             onRoadmapSaved={() => setActiveTab("roadmap")}
           />
         </div>
