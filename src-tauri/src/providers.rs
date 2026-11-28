@@ -50,30 +50,66 @@ pub async fn save_model_provider(input: ProviderInput) -> Result<ProviderTestRes
             .timeout(Duration::from_secs(60))
             .build()
             .map_err(|error| format!("Could not prepare the provider test: {error}"))?;
-        let response = client
-            .post(format!("{base_url}/chat/completions"))
-            .bearer_auth(provider.api_key.trim())
-            .json(&serde_json::json!({
-                "model": provider.model.trim(),
-                "messages": [{ "role": "user", "content": "Reply with exactly: Amanda API connection passed." }],
-                "max_tokens": 48,
-                "temperature": 0,
-                "stream": false
-            }))
-            .send()
-            .map_err(|error| format!("Could not reach this AI provider: {error}"))?;
+        let is_gemini = provider.provider_id.trim() == "gemini";
+        let (response, endpoint_label) = if is_gemini {
+            let api_root = base_url
+                .trim_end_matches("/openai")
+                .trim_end_matches("/interactions");
+            (
+                client
+                    .post(format!("{api_root}/interactions"))
+                    .header("x-goog-api-key", provider.api_key.trim())
+                    .json(&serde_json::json!({
+                        "model": provider.model.trim(),
+                        "input": "Reply with exactly: Amanda API connection passed.",
+                        "store": false
+                    }))
+                    .send()
+                    .map_err(|error| format!("Could not reach the Gemini Interactions API: {error}"))?,
+                "Gemini Interactions API",
+            )
+        } else {
+            (
+                client
+                    .post(format!("{base_url}/chat/completions"))
+                    .bearer_auth(provider.api_key.trim())
+                    .json(&serde_json::json!({
+                        "model": provider.model.trim(),
+                        "messages": [{ "role": "user", "content": "Reply with exactly: Amanda API connection passed." }],
+                        "max_tokens": 48,
+                        "temperature": 0,
+                        "stream": false
+                    }))
+                    .send()
+                    .map_err(|error| format!("Could not reach this AI provider: {error}"))?,
+                "OpenAI-compatible chat API",
+            )
+        };
         let status = response.status();
         let body = response.text().unwrap_or_default();
         if !status.is_success() {
-            let detail = body.chars().take(600).collect::<String>();
-            return Err(format!("The provider returned HTTP {status}: {detail}"));
+            let detail = body.chars().take(900).collect::<String>();
+            let hint = if is_gemini && status.as_u16() == 404 {
+                " Check that the model is available to your Gemini API key; the recommended default is gemini-3.8-flash."
+            } else { "" };
+            return Err(format!("{endpoint_label} returned HTTP {status}: {detail}{hint}"));
         }
         let payload: serde_json::Value = serde_json::from_str(&body)
-            .map_err(|_| "The provider returned an unreadable response. Use an OpenAI-compatible chat-completions endpoint.".to_string())?;
-        let answer = payload.pointer("/choices/0/message/content")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or_default()
-            .trim();
+            .map_err(|_| format!("{endpoint_label} returned an unreadable response."))?;
+        let answer = if is_gemini {
+            payload.get("steps").and_then(serde_json::Value::as_array)
+                .into_iter().flatten()
+                .filter(|step| step.get("type").and_then(serde_json::Value::as_str) == Some("model_output"))
+                .flat_map(|step| step.get("content").and_then(serde_json::Value::as_array).into_iter().flatten())
+                .filter_map(|part| part.get("text").and_then(serde_json::Value::as_str))
+                .collect::<Vec<_>>().join(" ")
+        } else {
+            payload.pointer("/choices/0/message/content")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let answer = answer.trim();
         if answer.is_empty() {
             return Err("The API request succeeded, but the selected model returned no visible answer.".to_string());
         }
