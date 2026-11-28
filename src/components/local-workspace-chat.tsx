@@ -237,7 +237,20 @@ export function LocalWorkspaceChat({
   useEffect(() => {
     try {
       const savedProviders = window.localStorage.getItem("amanda-api-model-providers");
-      if (savedProviders) setConfiguredApiProviders(JSON.parse(savedProviders) as ApiModelProvider[]);
+      if (savedProviders) {
+        const parsed = JSON.parse(savedProviders) as ApiModelProvider[];
+        const migrated = parsed.map((provider) => provider.id === "gemini"
+          ? {
+              ...provider,
+              baseUrl: provider.baseUrl.replace(/\/openai\/?$/, "").replace(/\/+$/, ""),
+              model: provider.model === "gemini-2.5-flash" ? "gemini-3.8-flash" : provider.model,
+            }
+          : provider);
+        setConfiguredApiProviders(migrated);
+        if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+          window.localStorage.setItem("amanda-api-model-providers", JSON.stringify(migrated));
+        }
+      }
       setSelectedProviderId(window.localStorage.getItem("amanda-active-model-provider") ?? "local");
     } catch { setSelectedProviderId("local"); }
   }, []);
