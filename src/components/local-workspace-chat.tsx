@@ -262,6 +262,9 @@ export function LocalWorkspaceChat({
       const activeModelConnection = selectedProvider
         ? { baseUrl: selectedProvider.baseUrl, apiKey: await invoke<string>("get_model_provider_key", { providerId: selectedProvider.id }) }
         : modelConnection ?? (await ensureLocalModelConnection(queryClient));
+      const modelEndpoint = selectedProvider
+        ? `${selectedProvider.baseUrl.replace(/\/+$/, "").replace(/\/chat\/completions$/, "")}/chat/completions`
+        : `${activeModelConnection.baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
       const activeConversation = conversation ?? (await ensureConversation(workspace.id));
       const now = new Date().toISOString();
       const attachmentSummary = attachments.length ? `Attached: ${attachments.map((item) => item.name).join(", ")}` : "";
@@ -437,7 +440,7 @@ export function LocalWorkspaceChat({
             }
           : {}),
       };
-      let response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
+      let response = await fetch(`${modelEndpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -450,7 +453,7 @@ export function LocalWorkspaceChat({
         const textOnlyHistory = history.map((message, index) =>
           index === history.length - 1 ? { ...message, content: userPrompt } : message,
         );
-        response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
+        response = await fetch(`${modelEndpoint}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -567,7 +570,7 @@ export function LocalWorkspaceChat({
         if (controller.signal.aborted) break;
         agentMessages.push(assistantToolMessage, ...toolMessages);
         setProgressLabel("Preparing your answer");
-        response = await fetch(`${activeModelConnection.baseUrl}/v1/chat/completions`, {
+        response = await fetch(`${modelEndpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${activeModelConnection.apiKey}` },
           signal: controller.signal,
@@ -575,9 +578,9 @@ export function LocalWorkspaceChat({
         });
         if (!response.ok) {
           const details = await response.text().catch(() => "");
-          throw new Error(`The local model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`);
+          throw new Error(`The selected model returned HTTP ${response.status}${details ? `: ${details.slice(0, 500)}` : ""}`);
         }
-        if (!response.body) throw new Error("The local model did not open a response stream");
+        if (!response.body) throw new Error("The selected model did not open a response stream");
         researchToolRounds += 1;
         result = await readModelStream(response.body, controller.signal, (nextText) => {
           assistantText = nextText;
