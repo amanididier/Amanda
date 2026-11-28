@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { createLocalAttachment, createPastedTextAttachment, formatFileSize, type LocalAttachment } from "@/lib/local-attachments";
 import { executeSql, isDesktopApp, selectRows } from "@/lib/database";
-import { notesQuery, workspacesQuery } from "@/lib/queries";
+import { notesQuery } from "@/lib/queries";
 import { createWorkspace } from "@/lib/workspaces";
 import { setPendingWorkspaceMessage } from "@/lib/pending-workspace-prompt";
 
@@ -70,7 +70,6 @@ function NotesPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: notes = [], isLoading } = useQuery(notesQuery());
-  const { data: workspaces = [] } = useQuery(workspacesQuery("active"));
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
