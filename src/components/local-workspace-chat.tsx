@@ -118,7 +118,7 @@ function buildGeminiInteractionsBody(messages: Array<{ role: string; content: un
     if (parts.length === 0) return [];
     return [{ type: message.role === "assistant" ? "model_output" : "user_input", content: parts }];
   });
-  return { model, input, ...(systemInstruction ? { system_instruction: systemInstruction } : {}), stream: true, store: false };
+  return { model, input, ...(systemInstruction ? { system_instruction: systemInstruction } : {}), generation_config: { max_output_tokens: 2400, temperature: 0.7, top_p: 0.8 }, stream: true, store: false };
 }
 
 async function readGeminiInteractionsStream(
@@ -356,7 +356,7 @@ export function LocalWorkspaceChat({
         ? { baseUrl: selectedProvider.baseUrl, apiKey: await invoke<string>("get_model_provider_key", { providerId: selectedProvider.id }) }
         : modelConnection ?? (await ensureLocalModelConnection(queryClient));
       const isGeminiProvider = selectedProvider?.id === "gemini";
-      const providerBaseUrl = selectedProvider?.baseUrl.replace(/\/+$/, "").replace(/\/openai$/, "").replace(/\/interactions$/, "");
+      const providerBaseUrl = selectedProvider ? selectedProvider.baseUrl.replace(/\/+$/, "").replace(/\/openai$/, "").replace(/\/interactions$/, "") : "";
       const modelEndpoint = selectedProvider
         ? providerBaseUrl + "/chat/completions"
         : activeModelConnection.baseUrl.replace(/\/+$/, "") + "/v1/chat/completions";
