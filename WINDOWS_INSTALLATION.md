@@ -32,13 +32,13 @@ Amanda remains local-first: the installed Qwen GGUF model is the default and con
 
 1. Open **Settings → AI API providers** in the Windows desktop app.
 2. Choose a provider (Google Gemini, OpenAI, OpenRouter, Groq, Mistral, DeepSeek, Together AI, or Custom OpenAI-compatible).
-3. Confirm the API base URL and enter the exact model ID shown by that provider. For Gemini's OpenAI-compatible endpoint, Amanda pre-fills `https://generativelanguage.googleapis.com/v1beta/openai`.
+3. Confirm the API base URL and enter the exact model ID shown by that provider. For Gemini, Amanda uses Google's native Interactions API and pre-fills `https://generativelanguage.googleapis.com/v1beta` with the current stable `gemini-3.8-flash` model.
 4. Paste your API key and select **Test connection & save securely**. Amanda sends a short completion request and only saves the key after a successful response.
 5. API keys are stored in Windows Credential Manager. Provider name, endpoint, and model selection are kept in the app's local browser profile; the secret key is not stored in notes, conversations, or localStorage.
 6. In any chat composer, use the model selector beside the attachment button to choose **Local · Qwen** or a connected API model. Your conversation and saved notes remain in Amanda when you switch.
 7. To disconnect a provider, return to **Settings → AI API providers** and choose **Disconnect**.
 
-The providers listed use an OpenAI-compatible `/chat/completions` API. Anthropic's native Messages API is not directly supported by this connector; use a compatible gateway if you need an Anthropic model. Provider API usage may be billed by the provider. Review its pricing and privacy terms before sending private material.
+Gemini uses Google's native streaming Interactions API (`POST /interactions`) with its `x-goog-api-key` authentication and step-delta stream format. Other listed providers use OpenAI-compatible `/chat/completions` APIs. Amanda automatically migrates an older saved Gemini `gemini-2.5-flash` selection to `gemini-3.8-flash` and removes the legacy `/openai` endpoint suffix. If a provider retires a model, update its model ID in Settings to a currently available model from that provider. Anthropic's native Messages API is not directly supported by this connector; use a compatible gateway if you need an Anthropic model. Provider API usage may be billed by the provider. Review its pricing and privacy terms before sending private material.
 
 ### Images in Daily Notes
 
