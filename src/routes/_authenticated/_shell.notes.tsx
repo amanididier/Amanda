@@ -242,23 +242,14 @@ function NotesPage() {
       );
       setDirty(false);
 
-      let targetWorkspace = projectId ? workspaces.find((workspace) => workspace.id === projectId) : undefined;
-      if (!targetWorkspace) targetWorkspace = researchWorkspaces.find((workspace) => workspace.name === "Notes research");
-      if (!targetWorkspace) {
-        targetWorkspace = await createWorkspace("research", "Notes research");
-        await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      }
-
-      const attachmentNames = attachmentsForPrompt.map((attachment) => attachment.name);
-      const prompt = [
-        `Please review my Daily Note and help me with it. The note text, images, and documents are attached as context.`,
-        `Note: ${noteTitle}`,
-        attachmentNames.length ? `Attached references: ${attachmentNames.join(", ")}. Please inspect the images and read the documents.` : "",
-      ].filter(Boolean).join("\n\n");
-      setPendingWorkspaceMessage(prompt, attachmentsForPrompt);
+      // Each Ask Amanda action creates its own workspace and conversation.
+      // The note and its references are staged as attachments; nothing is sent
+      // until the user adds their own instruction in the composer.
+      const targetWorkspace = await createWorkspace("research", noteTitle);
+      setPendingWorkspaceMessage("", attachmentsForPrompt);
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       await navigate({ to: "/w/$workspaceId", params: { workspaceId: targetWorkspace.id } });
-      toast.success(`Opening ${targetWorkspace.workspace_type === "research" ? "Research" : "Project"} chat`);
+      toast.success("New chat created with your note attached");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not send this note to Amanda");
     }
