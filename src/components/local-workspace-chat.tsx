@@ -402,6 +402,7 @@ export function LocalWorkspaceChat({
         ].join("\n\n");
         setStreamedResponse(assistantText);
       } else {
+      if (!selectedProvider && allTextAttachments.some((item) => item.kind === "image")) toast.warning("Your note images remain attached, but Local Qwen cannot inspect image pixels. Switch to a vision-capable API model for visual questions.");
       const requestBody = {
         ...(selectedProvider ? { model: selectedProvider.model } : {}),
         messages: [
