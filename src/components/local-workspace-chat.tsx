@@ -311,14 +311,14 @@ export function LocalWorkspaceChat({
         .filter((item) => !currentAttachments.some((current) => current.id === item.id))
         .filter((item) =>
           queryTerms.some((term) => `${item.name} ${item.extractedText}`.toLocaleLowerCase().includes(term)) ||
-          (item.kind === "image" && /\b(image|photo|picture|screenshot|diagram)\b/i.test(content))
+          (item.kind === "image" && /\b(image|photo|picture|screenshot|diagram|shown|visible|pictured|attached|above|below|this|that|these|those|reference|red box|arrow|highlight|chart|graph|layout|design|logo|colour|color|font|screen|interface|button|error)\b/i.test(content))
         )
         .slice(0, 2);
       const allTextAttachments = [...currentAttachments, ...relatedSavedAttachments];
       const attachmentContext = attachmentPromptContext(allTextAttachments).slice(0, 6_000);
       const imageContext = allTextAttachments
         .filter((item) => item.kind === "image")
-        .map((item) => `Image attached: ${item.name}. Inspect the image if visual input is supported by this local model.`)
+        .map((item) => selectedProvider ? `Image attached: ${item.name}. Inspect this visual reference when relevant to the question.` : `Image attached: ${item.name}. Local Qwen cannot inspect image pixels; switch to a vision-capable API model for visual questions.`)
         .join("\n");
       const userPrompt = [content || "Please read the attached files and help me with them.", attachmentContext, imageContext].filter(Boolean).join("\n\n");
       const modelHistory = history.map((message, index) =>
@@ -327,7 +327,7 @@ export function LocalWorkspaceChat({
               ...message,
               content: [
                 { type: "text", text: userPrompt },
-                ...allTextAttachments.filter((item) => item.kind === "image" && item.dataUrl).map((item) => ({
+                ...allTextAttachments.filter((item) => item.kind === "image" && item.dataUrl && selectedProvider).map((item) => ({
                   type: "image_url",
                   image_url: { url: item.dataUrl as string },
                 })),
