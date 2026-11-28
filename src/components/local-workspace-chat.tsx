@@ -93,6 +93,86 @@ const MAX_RESEARCH_TOOL_ROUNDS = 3;
 const MAX_RESEARCH_TOOL_CALLS = 4;
 
 
+function buildGeminiInteractionsBody(messages: Array<{ role: string; content: unknown }>, model: string) {
+  let systemInstruction = "";
+  const input = messages.flatMap((message) => {
+    if (message.role === "system") {
+      systemInstruction = typeof message.content === "string" ? message.content : "";
+      return [];
+    }
+    const parts = typeof message.content === "string"
+      ? [{ type: "text", text: message.content }]
+      : Array.isArray(message.content)
+        ? message.content.flatMap((part) => {
+            if (!part || typeof part !== "object") return [];
+            const item = part as { type?: string; text?: string; image_url?: { url?: string } };
+            if (item.type === "text" && typeof item.text === "string") return [{ type: "text", text: item.text }];
+            const url = item.image_url?.url;
+            if (item.type === "image_url" && typeof url === "string" && url.startsWith("data:")) {
+              const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+              if (match) return [{ type: "image", mime_type: match[1], data: match[2] }];
+            }
+            return [];
+          })
+        : [];
+    if (parts.length === 0) return [];
+    return [{ type: message.role === "assistant" ? "model_output" : "user_input", content: parts }];
+  });
+  return { model, input, ...(systemInstruction ? { system_instruction: systemInstruction } : {}), stream: true, store: false };
+}
+
+async function readGeminiInteractionsStream(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal,
+  onText: (text: string) => void,
+) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let responseText = "";
+  let eventData: string[] = [];
+  const handleEvent = () => {
+    const data = eventData.join("\n");
+    eventData = [];
+    if (!data || data === "[DONE]") return;
+    let event: { event_type?: string; delta?: { type?: string; text?: string }; error?: { message?: string }; message?: string };
+    try { event = JSON.parse(data) as typeof event; }
+    catch { throw new Error("Gemini returned an unreadable Interactions API event."); }
+    if (event.event_type === "step.delta" && event.delta?.type === "text" && typeof event.delta.text === "string") {
+      responseText += event.delta.text;
+      onText(responseText);
+    }
+    if (event.event_type === "interaction.failed" || event.event_type === "error") {
+      throw new Error(event.error?.message ?? event.message ?? "Gemini could not complete this interaction.");
+    }
+  };
+  const abortRead = () => void reader.cancel().catch(() => undefined);
+  signal.addEventListener("abort", abortRead, { once: true });
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line) handleEvent();
+        else if (line.startsWith("data:")) eventData.push(line.slice(5).trimStart());
+      }
+    }
+    pending += decoder.decode();
+    if (pending.startsWith("data:")) eventData.push(pending.slice(5).trimStart());
+    if (eventData.length) handleEvent();
+    return { text: responseText, toolCalls: [] as Array<{ id: string; index: number; name: string; arguments: string }> };
+  } finally {
+    signal.removeEventListener("abort", abortRead);
+    if (signal.aborted) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
+
+
 export function LocalWorkspaceChat({
   workspace,
   tasks,
@@ -262,9 +342,11 @@ export function LocalWorkspaceChat({
       const activeModelConnection = selectedProvider
         ? { baseUrl: selectedProvider.baseUrl, apiKey: await invoke<string>("get_model_provider_key", { providerId: selectedProvider.id }) }
         : modelConnection ?? (await ensureLocalModelConnection(queryClient));
+      const isGeminiProvider = selectedProvider?.id === "gemini";
+      const providerBaseUrl = selectedProvider?.baseUrl.replace(/\/+$/, "").replace(/\/openai$/, "").replace(/\/interactions$/, "");
       const modelEndpoint = selectedProvider
-        ? `${selectedProvider.baseUrl.replace(/\/+$/, "").replace(/\/chat\/completions$/, "")}/chat/completions`
-        : `${activeModelConnection.baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
+        ? providerBaseUrl + "/chat/completions"
+        : activeModelConnection.baseUrl.replace(/\/+$/, "") + "/v1/chat/completions";
       const activeConversation = conversation ?? (await ensureConversation(workspace.id));
       const now = new Date().toISOString();
       const attachmentSummary = attachments.length ? `Attached: ${attachments.map((item) => item.name).join(", ")}` : "";
@@ -440,16 +522,25 @@ export function LocalWorkspaceChat({
             }
           : {}),
       };
-      let response = await fetch(`${modelEndpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${activeModelConnection.apiKey}`,
+      let response = await fetch(
+        isGeminiProvider ? providerBaseUrl + "/interactions" : modelEndpoint,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(isGeminiProvider
+              ? { "x-goog-api-key": activeModelConnection.apiKey }
+              : { Authorization: "Bearer " + activeModelConnection.apiKey }),
+          },
+          signal: controller.signal,
+          body: JSON.stringify(
+            isGeminiProvider
+              ? buildGeminiInteractionsBody(requestBody.messages as Array<{ role: string; content: unknown }>, selectedProvider.model)
+              : requestBody,
+          ),
         },
-        signal: controller.signal,
-        body: JSON.stringify(requestBody),
-      });
-      if (!response.ok && allTextAttachments.some((item) => item.kind === "image") && [400, 422, 500].includes(response.status)) {
+      );
+      if (!isGeminiProvider && !response.ok && allTextAttachments.some((item) => item.kind === "image") && [400, 422, 500].includes(response.status)) {
         const textOnlyHistory = history.map((message, index) =>
           index === history.length - 1 ? { ...message, content: userPrompt } : message,
         );
@@ -471,10 +562,15 @@ export function LocalWorkspaceChat({
         );
       }
       if (!response.body) throw new Error("The selected model did not open a response stream");
-      let result = await readModelStream(response.body, controller.signal, (nextText) => {
-        assistantText = nextText;
-        setStreamedResponse(nextText);
-      });
+      let result = isGeminiProvider
+        ? await readGeminiInteractionsStream(response.body, controller.signal, (nextText) => {
+            assistantText = nextText;
+            setStreamedResponse(nextText);
+          })
+        : await readModelStream(response.body, controller.signal, (nextText) => {
+            assistantText = nextText;
+            setStreamedResponse(nextText);
+          });
       assistantText = result.text;
       interrupted = controller.signal.aborted;
       let researchToolRounds = 0;
