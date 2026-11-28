@@ -528,7 +528,7 @@ function SettingsPage() {
         <h2 id="api-models-heading" className="text-sm font-semibold">Connect cloud AI models</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Amanda stays local by default. Connect and test a provider here, then switch models in the chat composer. API keys are saved in Windows Credential Manager, not in notes or browser storage.</p>
         <Card className="mt-4 max-w-3xl">
-          <CardHeader><CardTitle className="text-base">Add an API provider</CardTitle><CardDescription>OpenAI-compatible chat APIs: Gemini, OpenAI, OpenRouter, Groq, Mistral, DeepSeek, Together AI, and custom gateways. Provider usage may incur charges.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="text-base">Add an API provider</CardTitle><CardDescription>Gemini uses Google's native Interactions API. OpenAI, OpenRouter, Groq, Mistral, DeepSeek, Together AI, and custom gateways use OpenAI-compatible chat APIs. Provider usage may incur charges.</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5"><Label>Provider</Label><Select value={apiProviderType} onValueChange={(value) => {
@@ -550,7 +550,7 @@ function SettingsPage() {
               <div className="flex flex-col gap-1.5"><Label htmlFor="api-provider-model">Model ID</Label><Input id="api-provider-model" value={apiProviderModel} onChange={(event) => setApiProviderModel(event.target.value)} /></div>
               <div className="flex flex-col gap-1.5"><Label htmlFor="api-provider-key">API key</Label><Input id="api-provider-key" type="password" autoComplete="off" value={apiProviderKey} onChange={(event) => setApiProviderKey(event.target.value)} placeholder="Paste your provider key" /></div>
             </div>
-            <div className="flex flex-wrap items-center gap-2"><Button onClick={() => void handleSaveApiProvider()} disabled={savingApiProvider || !apiProviderKey.trim()}>{savingApiProvider ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}Test connection & save securely</Button><span className="text-xs text-muted-foreground">A real completion request is sent before saving the key.</span></div>
+            <div className="flex flex-wrap items-center gap-2"><Button onClick={() => void handleSaveApiProvider()} disabled={savingApiProvider || !apiProviderKey.trim()}>{savingApiProvider ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}Test connection & save securely</Button><span className="text-xs text-muted-foreground">A real model request is sent to the provider's native API before saving the key.</span></div>
             {testResponse && <p className="rounded-md border border-border bg-muted/40 p-3 text-sm">Test response: {testResponse}</p>}
           </CardContent>
         </Card>
