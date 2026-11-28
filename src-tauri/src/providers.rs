@@ -65,7 +65,9 @@ pub async fn save_model_provider(input: ProviderInput) -> Result<ProviderTestRes
                         "store": false
                     }))
                     .send()
-                    .map_err(|error| format!("Could not reach the Gemini Interactions API: {error}"))?,
+                    .map_err(|error| {
+                        format!("Could not reach the Gemini Interactions API: {error}")
+                    })?,
                 "Gemini Interactions API",
             )
         } else {
@@ -91,27 +93,47 @@ pub async fn save_model_provider(input: ProviderInput) -> Result<ProviderTestRes
             let detail = body.chars().take(900).collect::<String>();
             let hint = if is_gemini && status.as_u16() == 404 {
                 " Check that the model is available to your Gemini API key; the recommended default is gemini-3.8-flash."
-            } else { "" };
-            return Err(format!("{endpoint_label} returned HTTP {status}: {detail}{hint}"));
+            } else {
+                ""
+            };
+            return Err(format!(
+                "{endpoint_label} returned HTTP {status}: {detail}{hint}"
+            ));
         }
         let payload: serde_json::Value = serde_json::from_str(&body)
             .map_err(|_| format!("{endpoint_label} returned an unreadable response."))?;
         let answer = if is_gemini {
-            payload.get("steps").and_then(serde_json::Value::as_array)
-                .into_iter().flatten()
-                .filter(|step| step.get("type").and_then(serde_json::Value::as_str) == Some("model_output"))
-                .flat_map(|step| step.get("content").and_then(serde_json::Value::as_array).into_iter().flatten())
+            payload
+                .get("steps")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|step| {
+                    step.get("type").and_then(serde_json::Value::as_str)
+                        == Some("model_output")
+                })
+                .flat_map(|step| {
+                    step.get("content")
+                        .and_then(serde_json::Value::as_array)
+                        .into_iter()
+                        .flatten()
+                })
                 .filter_map(|part| part.get("text").and_then(serde_json::Value::as_str))
-                .collect::<Vec<_>>().join(" ")
+                .collect::<Vec<_>>()
+                .join(" ")
         } else {
-            payload.pointer("/choices/0/message/content")
+            payload
+                .pointer("/choices/0/message/content")
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default()
                 .to_string()
         };
         let answer = answer.trim();
         if answer.is_empty() {
-            return Err("The API request succeeded, but the selected model returned no visible answer.".to_string());
+            return Err(
+                "The API request succeeded, but the selected model returned no visible answer."
+                    .to_string(),
+            );
         }
 
         #[cfg(target_os = "windows")]
