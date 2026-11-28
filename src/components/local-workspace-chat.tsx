@@ -111,7 +111,7 @@ function buildGeminiInteractionsBody(messages: Array<{ role: string; content: un
               const url = item.image_url?.url;
               if (item.type === "image_url" && typeof url === "string" && url.startsWith("data:")) {
                 const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
-                if (match) return [{ type: "image", mime_type: match[1], data: match[2] }];
+                if (match?.[1] && match?.[2]) return [{ type: "image", mime_type: match[1], data: match[2] }];
               }
               return [];
             })
