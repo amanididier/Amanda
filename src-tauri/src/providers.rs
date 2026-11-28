@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
