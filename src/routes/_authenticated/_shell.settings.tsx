@@ -67,6 +67,7 @@ type ModelProgress = {
 };
 
 type ModelConnection = { baseUrl: string; apiKey: string };
+type ApiModelProvider = { id: string; name: string; baseUrl: string; model: string };
 type LocalModel = { name: string; path: string; sizeBytes: number; isDefault: boolean };
 type WebSearchStatus = { firecrawlConfigured: boolean };
 type UpdateCheckStatus = { status: "idle" | "checking" | "available" | "current" | "error"; version?: string; message?: string };
@@ -84,6 +85,13 @@ function SettingsPage() {
   const [updateCheckStatus, setUpdateCheckStatus] = useState<UpdateCheckStatus>({ status: "idle" });
   const [connection, setConnection] = useState<ModelConnection | null>(() => queryClient.getQueryData<ModelConnection>(["model-connection"]) ?? null);
   const [testResponse, setTestResponse] = useState<string | null>(null);
+  const [apiProviderType, setApiProviderType] = useState("gemini");
+  const [apiProviderName, setApiProviderName] = useState("Gemini");
+  const [apiProviderBaseUrl, setApiProviderBaseUrl] = useState("https://generativelanguage.googleapis.com/v1beta/openai");
+  const [apiProviderModel, setApiProviderModel] = useState("gemini-2.5-flash");
+  const [apiProviderKey, setApiProviderKey] = useState("");
+  const [apiProviders, setApiProviders] = useState<ApiModelProvider[]>([]);
+  const [savingApiProvider, setSavingApiProvider] = useState(false);
   const [selectedModelPath, setSelectedModelPath] = useState("");
   const { data: localModels = [], refetch: refreshLocalModels } = useQuery({ queryKey: ["local-models"], queryFn: () => invoke<LocalModel[]>("list_local_models"), enabled: desktop });
   const [webApiKey, setWebApiKey] = useState("");
@@ -106,6 +114,10 @@ function SettingsPage() {
     };
     window.addEventListener("amanda:update-check-status", handleUpdateStatus);
     return () => window.removeEventListener("amanda:update-check-status", handleUpdateStatus);
+  }, []);
+
+  useEffect(() => {
+    try { const saved = window.localStorage.getItem("amanda-api-model-providers"); if (saved) setApiProviders(JSON.parse(saved) as ApiModelProvider[]); } catch { setApiProviders([]); }
   }, []);
 
   useEffect(() => {
@@ -165,6 +177,33 @@ function SettingsPage() {
       toast.error(message);
     }
     finally { setSavingWebKey(false); }
+  }
+
+
+  async function handleSaveApiProvider() {
+    if (!desktop) { toast.error("Connect API models in the Windows desktop app."); return; }
+    if (!apiProviderKey.trim() || !apiProviderModel.trim() || !apiProviderBaseUrl.trim()) { toast.error("Enter the API key, model name, and endpoint."); return; }
+    const id = apiProviderType;
+    setSavingApiProvider(true);
+    try {
+      const endpoint = apiProviderBaseUrl.trim().replace(/\/$/, "");
+      const result = await invoke<{ success: boolean; message: string; model: string }>("save_model_provider", { input: { providerId: id, baseUrl: endpoint, model: apiProviderModel.trim(), apiKey: apiProviderKey.trim() } });
+      const provider: ApiModelProvider = { id, name: apiProviderName.trim() || id, baseUrl: endpoint, model: apiProviderModel.trim() };
+      const next = [...apiProviders.filter((item) => item.id !== id), provider];
+      setApiProviders(next); window.localStorage.setItem("amanda-api-model-providers", JSON.stringify(next)); setApiProviderKey("");
+      setTestResponse(result.message); toast.success("Connected and tested " + provider.name + " · " + result.model);
+    } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
+    finally { setSavingApiProvider(false); }
+  }
+
+  async function handleRemoveApiProvider(provider: ApiModelProvider) {
+    try {
+      await invoke("delete_model_provider_key", { providerId: provider.id });
+      const next = apiProviders.filter((item) => item.id !== provider.id);
+      setApiProviders(next); window.localStorage.setItem("amanda-api-model-providers", JSON.stringify(next));
+      if (window.localStorage.getItem("amanda-active-model-provider") === provider.id) window.localStorage.removeItem("amanda-active-model-provider");
+      toast.success(provider.name + " disconnected");
+    } catch (error) { toast.error(error instanceof Error ? error.message : String(error)); }
   }
 
   async function handleDownload() {
@@ -316,6 +355,7 @@ function SettingsPage() {
     { id: "web-search", label: "Web search", description: "Firecrawl-powered online research", icon: Globe },
     { id: "data", label: "Your data", description: "Memory and archive", icon: Brain },
     { id: "local-ai", label: "Local AI model", description: "Install and manage Amanda's model", icon: Cpu },
+    { id: "api-models", label: "AI API providers", description: "Connect Gemini and other cloud models", icon: Globe },
     { id: "models", label: "Models on this PC", description: "Use an existing GGUF model", icon: Laptop },
     { id: "backup", label: "Backup and restore", description: "Move or restore your data", icon: HardDrive },
     { id: "privacy", label: "Privacy", description: "Local storage and data controls", icon: ShieldCheck },
@@ -464,6 +504,42 @@ function SettingsPage() {
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Link to="/memory" className="rounded-lg border border-border p-4 transition-colors hover:bg-accent"><div className="flex items-center gap-2 text-sm font-medium"><Brain className="size-4" />Memory</div><p className="mt-2 text-sm text-muted-foreground">Review and manage what Amanda remembers.</p></Link>
           <Link to="/archive" className="rounded-lg border border-border p-4 transition-colors hover:bg-accent"><div className="flex items-center gap-2 text-sm font-medium"><Archive className="size-4" />Archive</div><p className="mt-2 text-sm text-muted-foreground">Restore or permanently delete archived items.</p></Link>
+        </div>
+      </section>
+
+
+      <section hidden={activeSection !== "api-models"} className="mt-2" aria-labelledby="api-models-heading">
+        <h2 id="api-models-heading" className="text-sm font-semibold">Connect cloud AI models</h2>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Amanda stays local by default. Connect and test a provider here, then switch models in the chat composer. API keys are saved in Windows Credential Manager, not in notes or browser storage.</p>
+        <Card className="mt-4 max-w-3xl">
+          <CardHeader><CardTitle className="text-base">Add an API provider</CardTitle><CardDescription>OpenAI-compatible chat APIs: Gemini, OpenAI, OpenRouter, Groq, Mistral, DeepSeek, Together AI, and custom gateways. Provider usage may incur charges.</CardDescription></CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5"><Label>Provider</Label><Select value={apiProviderType} onValueChange={(value) => {
+                setApiProviderType(value);
+                const presets: Record<string, { name: string; url: string; model: string }> = {
+                  gemini: { name: "Gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash" },
+                  openai: { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
+                  openrouter: { name: "OpenRouter", url: "https://openrouter.ai/api/v1", model: "openai/gpt-4.1-mini" },
+                  groq: { name: "Groq", url: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
+                  mistral: { name: "Mistral", url: "https://api.mistral.ai/v1", model: "mistral-small-latest" },
+                  deepseek: { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+                  together: { name: "Together AI", url: "https://api.together.xyz/v1", model: "meta-llama/Llama-3.3-70B-Instruct-Turbo" },
+                  custom: { name: "Custom provider", url: "https://your-provider.example/v1", model: "" },
+                };
+                const preset = presets[value]; if (preset) { setApiProviderName(preset.name); setApiProviderBaseUrl(preset.url); setApiProviderModel(preset.model); }
+              }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{[["gemini","Google Gemini"],["openai","OpenAI"],["openrouter","OpenRouter"],["groq","Groq"],["mistral","Mistral"],["deepseek","DeepSeek"],["together","Together AI"],["custom","Custom OpenAI-compatible"]].map(([value,label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="flex flex-col gap-1.5"><Label htmlFor="api-provider-name">Display name</Label><Input id="api-provider-name" value={apiProviderName} onChange={(event) => setApiProviderName(event.target.value)} /></div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2"><Label htmlFor="api-provider-url">API base URL</Label><Input id="api-provider-url" value={apiProviderBaseUrl} onChange={(event) => setApiProviderBaseUrl(event.target.value)} /></div>
+              <div className="flex flex-col gap-1.5"><Label htmlFor="api-provider-model">Model ID</Label><Input id="api-provider-model" value={apiProviderModel} onChange={(event) => setApiProviderModel(event.target.value)} /></div>
+              <div className="flex flex-col gap-1.5"><Label htmlFor="api-provider-key">API key</Label><Input id="api-provider-key" type="password" autoComplete="off" value={apiProviderKey} onChange={(event) => setApiProviderKey(event.target.value)} placeholder="Paste your provider key" /></div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2"><Button onClick={() => void handleSaveApiProvider()} disabled={savingApiProvider || !apiProviderKey.trim()}>{savingApiProvider ? <LoaderCircle data-icon="inline-start" className="animate-spin" /> : <ShieldCheck data-icon="inline-start" />}Test connection & save securely</Button><span className="text-xs text-muted-foreground">A real completion request is sent before saving the key.</span></div>
+            {testResponse && <p className="rounded-md border border-border bg-muted/40 p-3 text-sm">Test response: {testResponse}</p>}
+          </CardContent>
+        </Card>
+        <div className="mt-5 max-w-3xl space-y-2"><h3 className="text-sm font-semibold">Connected providers</h3>
+          {apiProviders.length === 0 ? <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No API providers connected. Local Qwen remains the default.</p> : apiProviders.map((provider) => <div key={provider.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="text-sm font-medium">{provider.name} · {provider.model}</p><p className="truncate text-xs text-muted-foreground">{provider.baseUrl}</p></div><Button variant="outline" size="sm" onClick={() => void handleRemoveApiProvider(provider)}><Trash2 data-icon="inline-start" />Disconnect</Button></div>)}
         </div>
       </section>
 
