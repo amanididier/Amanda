@@ -272,7 +272,8 @@ export function LocalWorkspaceChat({
     if (pendingMessage) {
       setAttachments(pendingMessage.attachments);
       setInput(pendingMessage.prompt);
-      setAutoSendPendingPrompt(true);
+      // Note handoffs behave like uploaded files and wait for the user's instruction.
+      setAutoSendPendingPrompt(Boolean(pendingMessage.prompt.trim()));
       return;
     }
     const pendingPrompt = takePendingWorkspacePrompt();
