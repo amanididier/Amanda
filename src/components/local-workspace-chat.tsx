@@ -680,11 +680,13 @@ export function LocalWorkspaceChat({
               Conversation with Amanda
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              {modelReady
-                ? workspace.is_system === 1
-                  ? "This private conversation runs locally and retrieves only relevant saved context."
-                  : workspace.workspace_type === "research" ? "This conversation uses the local model and this research workspace’s saved context." : "This conversation uses the local model and this project’s saved context."
-                : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Amanda will start the local model when you send a message."}
+              {selectedProviderId !== "local"
+                ? "Using a connected cloud model. Your provider may process and bill for requests."
+                : modelReady
+                  ? workspace.is_system === 1
+                    ? "This private conversation runs locally and retrieves only relevant saved context."
+                    : workspace.workspace_type === "research" ? "This conversation uses the local model and this research workspace’s saved context." : "This conversation uses the local model and this project’s saved context."
+                  : modelBootState === "starting" ? "Starting your installed local model…" : modelBootState === "error" ? modelBootError || "Amanda could not start the local model. Check Settings." : "Amanda will start the local model when you send a message."}
             </p>
           </div>
         )}
