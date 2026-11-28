@@ -87,8 +87,8 @@ function SettingsPage() {
   const [testResponse, setTestResponse] = useState<string | null>(null);
   const [apiProviderType, setApiProviderType] = useState("gemini");
   const [apiProviderName, setApiProviderName] = useState("Gemini");
-  const [apiProviderBaseUrl, setApiProviderBaseUrl] = useState("https://generativelanguage.googleapis.com/v1beta/openai");
-  const [apiProviderModel, setApiProviderModel] = useState("gemini-2.5-flash");
+  const [apiProviderBaseUrl, setApiProviderBaseUrl] = useState("https://generativelanguage.googleapis.com/v1beta");
+  const [apiProviderModel, setApiProviderModel] = useState("gemini-3.8-flash");
   const [apiProviderKey, setApiProviderKey] = useState("");
   const [apiProviders, setApiProviders] = useState<ApiModelProvider[]>([]);
   const [savingApiProvider, setSavingApiProvider] = useState(false);
@@ -117,7 +117,23 @@ function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    try { const saved = window.localStorage.getItem("amanda-api-model-providers"); if (saved) setApiProviders(JSON.parse(saved) as ApiModelProvider[]); } catch { setApiProviders([]); }
+    try {
+      const saved = window.localStorage.getItem("amanda-api-model-providers");
+      if (saved) {
+        const parsed = JSON.parse(saved) as ApiModelProvider[];
+        const migrated = parsed.map((provider) => provider.id === "gemini"
+          ? {
+              ...provider,
+              baseUrl: provider.baseUrl.replace(/\/openai\/?$/, "").replace(/\/+$/, ""),
+              model: provider.model === "gemini-2.5-flash" ? "gemini-3.8-flash" : provider.model,
+            }
+          : provider);
+        setApiProviders(migrated);
+        if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+          window.localStorage.setItem("amanda-api-model-providers", JSON.stringify(migrated));
+        }
+      }
+    } catch { setApiProviders([]); }
   }, []);
 
   useEffect(() => {
@@ -518,7 +534,7 @@ function SettingsPage() {
               <div className="flex flex-col gap-1.5"><Label>Provider</Label><Select value={apiProviderType} onValueChange={(value) => {
                 setApiProviderType(value);
                 const presets: Record<string, { name: string; url: string; model: string }> = {
-                  gemini: { name: "Gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-flash" },
+                  gemini: { name: "Gemini", url: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-3.8-flash" },
                   openai: { name: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4.1-mini" },
                   openrouter: { name: "OpenRouter", url: "https://openrouter.ai/api/v1", model: "openai/gpt-4.1-mini" },
                   groq: { name: "Groq", url: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
