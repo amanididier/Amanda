@@ -71,8 +71,6 @@ function NotesPage() {
   const navigate = useNavigate();
   const { data: notes = [], isLoading } = useQuery(notesQuery());
   const { data: workspaces = [] } = useQuery(workspacesQuery("active"));
-  const projects = workspaces.filter((workspace) => workspace.workspace_type === "project");
-  const researchWorkspaces = workspaces.filter((workspace) => workspace.workspace_type === "research");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
