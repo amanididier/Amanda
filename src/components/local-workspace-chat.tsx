@@ -548,7 +548,7 @@ export function LocalWorkspaceChat({
           signal: controller.signal,
           body: JSON.stringify(
             isGeminiProvider
-              ? buildGeminiInteractionsBody(requestBody.messages as Array<{ role: string; content: unknown }>, selectedProvider.model)
+              ? buildGeminiInteractionsBody(requestBody.messages as Array<{ role: string; content: unknown }>, selectedProvider?.model ?? "gemini-3.8-flash")
               : requestBody,
           ),
         },
