@@ -25,6 +25,25 @@ The Windows installer bundles the pinned llama.cpp b9222 CPU runtime; it does no
 
 The GGUF is a community conversion by bartowski from Qwen&apos;s Apache-2.0 checkpoint; it is not an official Qwen-published GGUF. The browser preview cannot download or run the desktop model.
 
+
+## Hybrid AI models and API providers
+
+Amanda remains local-first: the installed Qwen GGUF model is the default and continues to work without a cloud API key. To use a hosted model when you need stronger reasoning or image understanding:
+
+1. Open **Settings → AI API providers** in the Windows desktop app.
+2. Choose a provider (Google Gemini, OpenAI, OpenRouter, Groq, Mistral, DeepSeek, Together AI, or Custom OpenAI-compatible).
+3. Confirm the API base URL and enter the exact model ID shown by that provider. For Gemini's OpenAI-compatible endpoint, Amanda pre-fills `https://generativelanguage.googleapis.com/v1beta/openai`.
+4. Paste your API key and select **Test connection & save securely**. Amanda sends a short completion request and only saves the key after a successful response.
+5. API keys are stored in Windows Credential Manager. Provider name, endpoint, and model selection are kept in the app's local browser profile; the secret key is not stored in notes, conversations, or localStorage.
+6. In any chat composer, use the model selector beside the attachment button to choose **Local · Qwen** or a connected API model. Your conversation and saved notes remain in Amanda when you switch.
+7. To disconnect a provider, return to **Settings → AI API providers** and choose **Disconnect**.
+
+The providers listed use an OpenAI-compatible `/chat/completions` API. Anthropic's native Messages API is not directly supported by this connector; use a compatible gateway if you need an Anthropic model. Provider API usage may be billed by the provider. Review its pricing and privacy terms before sending private material.
+
+### Images in Daily Notes
+
+Daily Notes can contain pasted screenshots, inline images, gallery images, and document attachments. **Ask Amanda** sends the note text and its attached image/document data into the workspace conversation. Amanda includes saved note references with that request; later turns retrieve relevant conversation attachments when the question refers to them. Image understanding requires a vision-capable selected model. The bundled Qwen local model is not guaranteed to understand images; if it rejects image input, Amanda falls back to text context and reports that the image itself could not be interpreted. Choose a vision-capable Gemini or other multimodal API model for visual questions. Images sent to a cloud provider leave the device and are subject to that provider's data policies.
+
 ## Current verification boundary
 
 The local Linux workspace cannot run the native Windows app. The supported Windows GitHub Actions build must succeed before claiming an installer was produced, and the model&apos;s inference speed and memory usage still need to be measured on the target Windows 11 machine (Intel i5-6200U, 8 GB RAM). The installer is unsigned. These are explicit release limitations, not test-app behavior.
