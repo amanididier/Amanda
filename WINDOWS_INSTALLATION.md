@@ -13,9 +13,9 @@ The installer is produced by the `Windows installer` GitHub Actions workflow. A 
 A repository maintainer can build the actual NSIS Windows installer from the GitHub web interface:
 
 - **Build an installer:** open **Actions → Windows installer → Run workflow**. The `v0/local-model-first-run` development branch also runs this build when pushed. When a Windows build succeeds, download `Amanda-Windows-Installer` from that run&apos;s artifacts. This is the compiled NSIS installer, not a browser preview or mock package; workflow artifacts expire after 14 days.
-- **Publish a durable download:** create and push a version tag matching `v*` (for example, `v0.1.1`). The same Windows build runs and attaches its `.exe` to the repository&apos;s GitHub Release.
+- **Publish a durable download:** create and push a version tag matching the app version (for this prepared release, `v0.1.14`). The same Windows build runs and attaches its `.exe` to the repository&apos;s GitHub Release.
 
-The workflow needs the repository&apos;s default `GITHUB_TOKEN` with `contents: write` permission to attach release assets. No custom secret is required. A failed Windows build does not create a downloadable installer.
+The workflow uses the repository&apos;s default `GITHUB_TOKEN` with `contents: write` permission to attach release assets. A tagged updater release also requires `TAURI_SIGNING_PRIVATE_KEY` (and its password if configured) under **Settings → Secrets and variables → Actions**; the workflow stops before publishing if the private key is missing. A failed Windows build does not create a downloadable installer.
 
 The installer is not code-signed yet. Windows SmartScreen may show an unknown-publisher warning; that does not mean the installer is a test build. Do not distribute an installer until the corresponding Windows workflow completes successfully.
 
