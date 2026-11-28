@@ -1,6 +1,7 @@
 mod backup;
 mod model;
 mod plans;
+mod providers;
 mod research;
 
 use tauri::Manager;
@@ -209,6 +210,9 @@ pub fn run() {
             research::get_web_search_status,
             research::save_web_search_key,
             research::search_web,
+            providers::save_model_provider,
+            providers::get_model_provider_key,
+            providers::delete_model_provider_key,
             model::get_model_status,
             model::list_local_models,
             model::download_model,
